@@ -92,3 +92,9 @@ def test_verifier_budget_goes_to_high_priority_classes_first(clip_path):
     cands = [Candidate(float(i), i + 1.0, "road_obstacle", 0.4) for i in range(3)] + [Candidate(4.0, 5.0, "accident", 0.3)]
     out = Verifier(vlm, ["accident", "near_miss", "road_obstacle"], max_calls=1).filter(cands, clip_path)
     assert [c.label for c in out] == ["accident"]
+
+
+def test_nan_from_the_vlm_is_rejected_not_accepted():
+    """fp16 overflow on T4 would surface as NaN logits: must reject, and loudly."""
+    frames = [np.zeros((10, 10, 3), np.uint8)]
+    assert verify_candidate(frames, Candidate(0, 1, "accident", 0.3), FakeVLM(float("nan"))) == (False, 0.0)

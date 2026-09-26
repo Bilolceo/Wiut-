@@ -93,6 +93,10 @@ def verify_candidate(frames: list[np.ndarray], candidate: Candidate, backend, th
     if question is None or not frames:
         return False, 0.0
     p = float(backend.p_yes(frames, question + SUFFIX))
+    if not np.isfinite(p):
+        # fp16 overflow inside the VLM (T4 has no bf16) shows up as NaN logits: never accept on garbage
+        log.error("VLM returned non-finite P(yes) for %s %.1f-%.1fs; rejecting", candidate.label, candidate.start, candidate.end)
+        return False, 0.0
     return p >= threshold, p
 
 
