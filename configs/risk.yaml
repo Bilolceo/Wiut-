@@ -11,17 +11,18 @@ realign_every_sec: 10.0
 history_sec: 1.0              # velocity window (past frames only)
 stale_sec: 1.0                # forget a track not seen for this long
 max_pair_distance_m: 25.0
-# The homography is calibrated on the stop line / main zebra (14 x 5 m); beyond this
-# box the metres are extrapolated and distorted (foreground x shrinks ~3x), which
-# made TTC fire on normal traffic. Road users outside it are ignored for now.
-valid_world_box_m: [-5.0, 25.0, -15.0, 10.0]   # x_min, x_max, y_min, y_max
+# Metric calibration (scripts/calibrate_camera.py) holds over the whole road; beyond ~60 m
+# (top of the frame) objects are ~20 px tall and tracks are unreliable, so they are ignored.
+valid_world_box_m: [-15.0, 60.0, -35.0, 60.0]   # x_min, x_max, y_min, y_max (stop-line frame)
 radius_m: {vehicle: 1.0, pedestrian: 0.5}   # half-widths: adjacent lanes are 3.5 m apart
 min_speed_mps: 1.0            # pairs where both are slower are not a conflict
-min_closing_mps: 1.5          # below this the "approach" is detector jitter
-ttc_mid_sec: 1.0              # risk = sigmoid(slope * (ttc_mid - min_ttc) + drac_weight * drac/ref)
+min_closing_mps: 3.0          # below: jitter or queue compression
+# Swept on the 4 samples (no accidents in them): 0.4-2.1 % of frames > 0.5 over the whole road.
+ttc_half_sec: 0.8             # risk = 0.5 at this TTC: sigmoid(max(bias, slope*(ttc_half - min_ttc)) + drac term)
 ttc_slope: 4.0
 drac_ref_mps2: 6.0
-drac_weight: 1.0
+drac_weight: 0.5
 drac_cap: 2.0                 # a tiny gap makes DRAC explode; cap its contribution
-bias: -3.0                    # no conflict -> sigmoid(-3) ~ 0.05; TTC 0.75 s -> 0.5
+bias: -3.0                    # no-conflict floor: sigmoid(-3) ~ 0.05
+persist_steps: 5              # a conflict must hold over 5 detector steps (~0.5 s, PLAN 8.4) -- kills velocity-noise spikes
 ema_alpha: 0.3

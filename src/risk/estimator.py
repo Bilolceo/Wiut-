@@ -7,7 +7,8 @@ never touches Part A output (CLAUDE.md hard rule).
 Per processed frame (every `stride_frames`): YOLO + ByteTrack -> ground
 points mapped onto the reference frame (runtime alignment) and into metres
 (scene homography) -> per-track velocity from the last `history_sec` ->
-pairwise TTC / DRAC for nearby road users -> hand-set sigmoid -> EMA.
+pairwise TTC / DRAC for nearby road users -> hand-set sigmoid -> minimum
+over the last `persist_steps` (a conflict must persist) -> EMA.
 """
 from __future__ import annotations
 
@@ -31,10 +32,16 @@ def in_box(xy: tuple[float, float], box: list[float]) -> bool:
 
 
 def risk_from_conflict(min_ttc: float | None, max_drac: float, cfg: dict) -> float:
-    """Map the worst current conflict to [0, 1]; no conflict -> sigmoid(bias) (small)."""
-    z = cfg["bias"] + cfg["drac_weight"] * min(max_drac / cfg["drac_ref_mps2"], cfg["drac_cap"])
+    """Map the worst current conflict to [0, 1].
+
+    TTC term: logit = slope * (ttc_half - min_ttc), i.e. exactly 0.5 at TTC = ttc_half;
+    it never drops below the no-conflict floor sigmoid(bias) (~0.05). DRAC adds
+    evidence on top (capped: a tiny gap makes DRAC explode).
+    """
+    z = cfg["bias"]
     if min_ttc is not None:
-        z += cfg["ttc_slope"] * (cfg["ttc_mid_sec"] - min_ttc)
+        z = max(z, cfg["ttc_slope"] * (cfg["ttc_half_sec"] - min_ttc))
+    z += cfg["drac_weight"] * min(max_drac / cfg["drac_ref_mps2"], cfg["drac_cap"])
     return 1.0 / (1.0 + math.exp(-z))
 
 
@@ -114,6 +121,9 @@ class CausalRiskEstimator:
         self.frame_idx = -1
         self.score = 0.0
         self.history = TrackHistory(self.cfg["history_sec"], self.cfg["stale_sec"])
+        # pre-filled with the no-conflict floor, so a spike on the very first steps cannot pass either
+        floor = risk_from_conflict(None, 0.0, self.cfg)
+        self.recent_raw: deque = deque([floor] * self.cfg["persist_steps"], maxlen=self.cfg["persist_steps"])
         video_id = str(meta.get("video_id", "")).rsplit(".", 1)[0]
         self.video_size = (int(meta.get("width") or 3840), int(meta.get("height") or 2160))
         self.ref_w, self.ref_h = self.scene.reference_size(self.video_size)
@@ -150,7 +160,8 @@ class CausalRiskEstimator:
         self._maybe_realign(frame, t_sec)
         self.history.update(t_sec, self._observations(frame))
         min_ttc, max_drac = worst_conflict(self.history.states(t_sec), self.cfg)
-        raw = risk_from_conflict(min_ttc, max_drac, self.cfg)
+        self.recent_raw.append(risk_from_conflict(min_ttc, max_drac, self.cfg))
+        raw = min(self.recent_raw)  # the conflict must persist, not spike for one detector step
         a = self.cfg["ema_alpha"]
         self.score = float(np.clip(a * raw + (1 - a) * self.score, 0.0, 1.0))
         return self.score

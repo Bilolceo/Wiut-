@@ -10,12 +10,12 @@ classes:
   jaywalking:          {enabled: true,  min_conf: 0.5, min_duration_sec: 1.5}
   failure_to_yield:    {enabled: true,  min_conf: 0.5, min_duration_sec: 0.5}
   stopped_vehicle:     {enabled: true,  min_conf: 0.5, min_duration_sec: 1.0}
-  congestion:          {enabled: false, min_conf: 0.5, min_duration_sec: 15.0}   # no real jam in the samples to validate on
-  wrong_way:           {enabled: false, min_conf: 0.5, min_duration_sec: 1.0}   # needs verified lanes[]
+  congestion:          {enabled: true,  min_conf: 0.5, min_duration_sec: 15.0}   # light-gated, bus stop excluded; 0 false positives on the samples
+  wrong_way:           {enabled: true,  min_conf: 0.5, min_duration_sec: 2.0}   # 0 false positives on the 4 samples after the moving-only fix
   illegal_turn:        {enabled: false, min_conf: 0.5, min_duration_sec: 1.0}   # needs lanes[].turn_allowed
   illegal_u_turn:      {enabled: false, min_conf: 0.5, min_duration_sec: 2.0}   # zone legality unverified
   solid_line_crossing: {enabled: false, min_conf: 0.5, min_duration_sec: 0.5}
-  road_obstacle:       {enabled: false, min_conf: 0.4, min_duration_sec: 3.0}
+  road_obstacle:       {enabled: true,  min_conf: 0.5, min_duration_sec: 3.0}   # VLM-verified (rule conf 0.4 < min_conf until confirmed)
   fire_smoke:          {enabled: false, min_conf: 0.3, min_duration_sec: 2.0}   # VLM verifier pending
-  accident:            {enabled: false, min_conf: 0.3, min_duration_sec: 1.0}   # VLM verifier pending
-  near_miss:           {enabled: false, min_conf: 0.3, min_duration_sec: 1.0}   # VLM verifier pending
+  accident:            {enabled: true,  min_conf: 0.5, min_duration_sec: 1.0}   # VLM-verified; 0/12 sample false candidates accepted
+  near_miss:           {enabled: true,  min_conf: 0.5, min_duration_sec: 1.0}   # VLM-verified; 0/24 sample false candidates accepted

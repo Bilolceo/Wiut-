@@ -102,3 +102,23 @@ def test_congestion_ignores_single_car_crawl(scene):
             7, "car", TrackPoint(frame_idx=i, t_sec=float(i), x_norm=0.2, y_norm=0.15, x_m=1.0 + 0.05 * i, y_m=5.0)
         )
     assert CongestionRule().run(store, scene) == []
+
+
+def test_congestion_ignores_buses_dwelling_at_a_stop(tmp_path):
+    """C3896 @ 79-96 s: buses at the far-road stop were flagged as a jam while traffic flowed."""
+    scene_json = {
+        "reference_video": "t.MP4", "crosswalks": [], "stop_lines": [], "traffic_lights": [], "no_u_turn_zones": [],
+        "intersection": None, "road_mask": None, "camera_alignment": {},
+        "homography": {"image_points": [[0, 0], [1, 0], [1, 1], [0, 1]], "world_points_m": [[0, 0], [100, 0], [100, 100], [0, 100]]},
+        "lanes": [{"id": "road", "polygon": [[0, 0], [1, 0], [1, 0.3], [0, 0.3]], "direction": [1.0, 0.0], "turn_allowed": []}],
+        "bus_stops": [{"id": "stop", "polygon": [[0.0, 0.0], [1.0, 0.0], [1.0, 0.2], [0.0, 0.2]]}],
+    }
+    p = tmp_path / "s.json"
+    p.write_text(json.dumps(scene_json))
+    scene = load_scene(p)
+    store = TrackStore(video_id="test", fps=10.0)
+    for i in range(21):
+        for k in range(6):  # six vehicles standing inside the bus-stop zone
+            store.add_point(10 + k, "bus", TrackPoint(frame_idx=i, t_sec=float(i), x_norm=0.1 + 0.15 * k, y_norm=0.15, x_m=10.0 + 15 * k, y_m=15.0))
+    assert CongestionRule().run(store, scene) == []
+    assert StoppedVehicleRule().run(store, scene) == []

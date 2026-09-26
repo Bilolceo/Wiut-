@@ -13,3 +13,10 @@ budget:
   part_a_max_factor: 1.5      # stop decoding at 1.5x duration; rules run on what was seen
 seed: 1234
 realign_every_sec: 10.0     # camera drifts ~15 px/10 s at 4K; re-estimate alignment (~0.15 s each)
+verifier:                     # src/verify/vlm.py -- confirms low-precision classes with Qwen3-VL-2B
+  enabled: true               # silently skipped if model_dir is missing (weights/download.sh not run)
+  model_dir: weights/qwen3-vl-2b-instruct
+  labels: [accident, near_miss, fire_smoke, road_obstacle]   # priority order for the call budget
+  max_calls: 30               # per video (docs/PLAN.md section 7)
+  threshold: 0.5              # P(yes) needed to accept; accepted candidates get conf = P(yes)
+  deadline_factor: 1.3        # stop verifying once Part A has used 1.3x the video duration

@@ -1,4 +1,4 @@
-data/
+/data/
 weights/*.pt
 !weights/yolo11n.pt
 __pycache__/
@@ -9,3 +9,4 @@ docs/frames/
 .DS_Store
 /*.pt
 docs/scene_debug/
+weights/qwen3-vl-2b-instruct/

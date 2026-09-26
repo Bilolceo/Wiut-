@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Traffic Event Detection</title>
+  <meta name="description" content="WIUT Hackathon 2026, CV track: traffic event detection and causal accident anticipation from a fixed 4K road camera.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-inner">
+      <a class="brand" href="#">Traffic Event Detection</a>
+      <nav aria-label="Sections">
+        <a href="#team">Team</a><a href="#approach">Approach</a><a href="#eda">EDA</a><a href="#results">Results</a>
+        <a href="#demo">Live demo</a><a href="#report">Report</a><a href="#links">Links</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <p class="kicker">WIUT Hackathon 2026 · Computer Vision track</p>
+      <h1>Traffic events from a fixed road camera</h1>
+      <p class="lede">A 4K CCTV view of a Tashkent intersection. <strong>Part A</strong> finds events as time segments
+        over 14 classes; <strong>Part B</strong> scores, frame by frame and using only the past, the probability that an
+        accident starts within the next 5 seconds.</p>
+      <div class="tiles" id="hero-tiles" aria-live="polite"></div>
+    </section>
+
+    <!-- 1. Team -->
+    <section id="team">
+      <h2>Team</h2>
+      <div class="cards" id="team-cards">
+        <article class="card person"><div class="avatar" aria-hidden="true">?</div><h3>Member name</h3><p class="muted">Role · what they built</p><p class="links"><a href="#">GitHub</a> · <a href="#">LinkedIn</a></p></article>
+        <article class="card person"><div class="avatar" aria-hidden="true">?</div><h3>Member name</h3><p class="muted">Role · what they built</p><p class="links"><a href="#">GitHub</a> · <a href="#">LinkedIn</a></p></article>
+        <article class="card person"><div class="avatar" aria-hidden="true">?</div><h3>Member name</h3><p class="muted">Role · what they built</p><p class="links"><a href="#">GitHub</a> · <a href="#">LinkedIn</a></p></article>
+      </div>
+    </section>
+
+    <!-- 2. Problem & approach -->
+    <section id="approach">
+      <h2>Problem &amp; approach</h2>
+      <p>One camera, one intersection, unknown test videos from the same mount. The pipeline decodes every 3rd frame,
+        aligns each recording onto a reference frame, tracks road users, and turns trajectories plus hand-measured scene
+        geometry into events. Learned components do perception; rules do the reasoning, so every event can be explained.</p>
+      <figure class="diagram">
+        <svg viewBox="0 0 980 210" role="img" aria-labelledby="pipe-title pipe-desc">
+          <title id="pipe-title">Pipeline</title>
+          <desc id="pipe-desc">Video is decoded at 10 fps, aligned to the reference frame, passed to perception (YOLO11n with BoT-SORT, traffic-light state, static-object monitor), stored as tracks in metres, then 14 event rules and post-processing produce events. Part B runs its own causal detector and computes time-to-collision risk.</desc>
+          <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+          <g class="node"><rect x="10" y="40" width="120" height="56" rx="8"/><text x="70" y="64">io</text><text x="70" y="82" class="sub">decode 10 fps</text></g>
+          <g class="node"><rect x="160" y="40" width="130" height="56" rx="8"/><text x="225" y="64">scene</text><text x="225" y="82" class="sub">runtime alignment</text></g>
+          <g class="node learned"><rect x="320" y="30" width="170" height="76" rx="8"/><text x="405" y="56">perception</text><text x="405" y="74" class="sub">YOLO11n + BoT-SORT</text><text x="405" y="92" class="sub">light HSV · MOG2</text></g>
+          <g class="node"><rect x="515" y="40" width="135" height="56" rx="8"/><text x="582" y="64">tracks</text><text x="582" y="82" class="sub">metres (homography)</text></g>
+          <g class="node"><rect x="670" y="40" width="130" height="56" rx="8"/><text x="735" y="64">events</text><text x="735" y="82" class="sub">14 rules</text></g>
+          <g class="node learned"><rect x="830" y="40" width="140" height="56" rx="8"/><text x="900" y="64">verify + post</text><text x="900" y="82" class="sub">Qwen3-VL · merge</text></g>
+          <g class="edges"><path d="M130 68 H158" marker-end="url(#arr)"/><path d="M290 68 H318" marker-end="url(#arr)"/><path d="M490 68 H513" marker-end="url(#arr)"/><path d="M650 68 H668" marker-end="url(#arr)"/><path d="M800 68 H828" marker-end="url(#arr)"/></g>
+          <g class="node learned"><rect x="320" y="140" width="170" height="56" rx="8"/><text x="405" y="164">Part B risk</text><text x="405" y="182" class="sub">causal YOLO + ByteTrack</text></g>
+          <g class="node"><rect x="520" y="140" width="280" height="56" rx="8"/><text x="660" y="164">TTC / DRAC → sigmoid → EMA</text><text x="660" y="182" class="sub">conflict must persist ≥ 0.5 s</text></g>
+          <g class="edges"><path d="M225 96 V168 H318" marker-end="url(#arr)"/><path d="M490 168 H518" marker-end="url(#arr)"/></g>
+          <g class="legend-keys"><rect x="10" y="150" width="14" height="14" rx="3" class="key-learned"/><text x="30" y="162" class="sub left">learned</text><rect x="10" y="174" width="14" height="14" rx="3" class="key-rule"/><text x="30" y="186" class="sub left">rule-based / classical</text></g>
+        </svg>
+      </figure>
+      <table class="plain">
+        <thead><tr><th>Component</th><th>Learned or rule-based</th></tr></thead>
+        <tbody>
+          <tr><td>Road-user detection &amp; tracking</td><td>Learned: YOLO11n (COCO) + BoT-SORT</td></tr>
+          <tr><td>Camera alignment across recordings</td><td>Classical: ORB features, RANSAC similarity</td></tr>
+          <tr><td>Metric calibration</td><td>Fitted pinhole camera (≈12k pedestrian heights, lane vanishing point, 14 m stop line)</td></tr>
+          <tr><td>Traffic-light colour</td><td>Classical: HSV + lamp position</td></tr>
+          <tr><td>14 event classes</td><td>Rules on trajectories, geometry and light state</td></tr>
+          <tr><td>Accident / near-miss / obstacle / fire confirmation</td><td>Learned: Qwen3-VL-2B-Instruct verifier, P(yes) from next-token logits, ≤ 30 calls per video</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 3. EDA -->
+    <section id="eda">
+      <h2>Exploratory data analysis</h2>
+      <div class="tiles" id="eda-tiles"></div>
+      <figure class="chart-card">
+        <figcaption><h3>Frame brightness over time</h3><p class="muted">Mean grey level every 5 s. Two videos in daylight, one fading into evening, one at dusk with a jump at 60 s — thresholds must adapt to light.</p></figcaption>
+        <div class="chart" id="brightness-chart"></div>
+        <details class="table-view"><summary>Table view</summary><div id="brightness-table"></div></details>
+      </figure>
+      <div class="two-col">
+        <figure class="card">
+          <img src="assets/calib_C3896.jpg" alt="Reference frame with crosswalks, stop line, traffic-light regions, refuge islands and a 5 metre ground grid overlaid" loading="lazy">
+          <figcaption>Scene geometry measured once on the reference frame, with the fitted 5 m ground grid. The median head is the vehicle signal; the left pole is a pedestrian signal.</figcaption>
+        </figure>
+        <figure class="card">
+          <h3>Camera shift vs reference</h3>
+          <p class="muted">The mount moves between recordings (and ~15 px within one), so alignment runs at runtime every 10 s.</p>
+          <div id="shift-table"></div>
+        </figure>
+      </div>
+    </section>
+
+    <!-- 4. Results -->
+    <section id="results">
+      <h2>Results on the sample videos</h2>
+      <p class="muted">Output of the organizers' harness (<code>run_submission.py</code>) on the four sample videos. No ground truth yet, so there is no score here: every enabled class was checked by eye on contact sheets instead.</p>
+      <div class="tabs" role="tablist" id="video-tabs"></div>
+      <div id="video-panel">
+        <div class="tiles small" id="video-tiles"></div>
+        <figure class="chart-card">
+          <figcaption><h3>Event timeline</h3><p class="muted">One row per enabled class; hover a segment for its time span.</p></figcaption>
+          <div class="chart" id="timeline-chart"></div>
+        </figure>
+        <figure class="chart-card">
+          <figcaption><h3>Part B: accident risk</h3><p class="muted">P(accident starts within 5 s), causal. Downsampled to 2 Hz keeping each window's maximum. Dashed line: 0.5.</p></figcaption>
+          <div class="chart" id="risk-chart"></div>
+        </figure>
+        <details class="table-view"><summary>Events table</summary><div id="events-table"></div></details>
+      </div>
+    </section>
+
+    <!-- 5. Live demo -->
+    <section id="demo">
+      <h2>Live demo</h2>
+      <form class="card demo" id="demo-form">
+        <label for="demo-file">Upload a short clip from the same camera (MP4, ≤ 60 s)</label>
+        <input id="demo-file" name="video" type="file" accept="video/mp4">
+        <button type="submit" disabled>Run detection</button>
+        <p class="muted" id="demo-status">The inference backend is not connected yet. This form will post the clip to it and draw the returned events and risk curve with the same charts as above.</p>
+      </form>
+    </section>
+
+    <!-- 6. Report -->
+    <section id="report">
+      <h2>Report</h2>
+      <div class="two-col">
+        <article class="card">
+          <h3>What worked</h3>
+          <ul>
+            <li>Checking every rule on real frames, not only on synthetic tests: it caught the pedestrian-vs-vehicle signal mix-up, riders counted as pedestrians, people waiting on the kerb, and red-to-green line creeping.</li>
+            <li>Traffic-light state from an absolute lit-pixel count plus lamp position: clean ~33 s red / ~36 s green cycles on all four videos, day and dusk.</li>
+            <li>Runtime alignment (4-DOF similarity): the same geometry lands on the zebras in every recording.</li>
+            <li>Metric calibration from pedestrian heights: two independent scale cues (people at 1.7 m and a 4-lane stop line) agree within 3 %.</li>
+            <li>A Qwen3-VL-2B verifier that answers yes/no from logits: 0 of 98 false accident / near-miss / obstacle candidates accepted.</li>
+            <li>Runtime well inside the 3× limit on an Apple M4 (see Results).</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>What did not (yet)</h3>
+          <ul>
+            <li>No ground truth: thresholds are tuned by eye, so precision and recall are not measured.</li>
+            <li>The VLM verifier rejected all 98 false candidates on the samples, but its recall is untested: the samples contain no accident. Fire/smoke stays disabled.</li>
+            <li>The tracker switches IDs at 10 fps (≈1,200 tracks in 340 s), which shortens trajectories.</li>
+            <li>Not yet timed on the evaluation GPU (T4).</li>
+            <li>Part B has no accident examples to calibrate on; it is a physics baseline, not a trained model.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- 7. Links -->
+    <section id="links">
+      <h2>Links</h2>
+      <ul class="link-list">
+        <li><a href="https://github.com/Bilolceo/Wiut-">Source code (GitHub)</a></li>
+        <li><a href="https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt">Detector weights: YOLO11n (5.6 MB, AGPL-3.0)</a></li>
+        <li><a href="https://github.com/Bilolceo/Wiut-/blob/main/predictions_samples.json">predictions_samples.json</a></li>
+        <li><a href="https://github.com/Bilolceo/Wiut-/blob/main/docs/PLAN.md">Design document (PLAN.md)</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="wrap foot muted">Built from <code>site/data/site.json</code>, generated by <code>scripts/build_site_data.py</code>.</footer>
+  <div class="tooltip" id="tooltip" role="status" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

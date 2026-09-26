@@ -408,41 +408,176 @@
   ]
  },
  "homography": {
-  "note": "APPROXIMATE (+-25%): stop_line_near spans 4 lanes x 3.5 m = 14 m; stop line -> crosswalk_main_left top edge ~5 m (about one car length). C/D are where the two lane-edge lines (measured direction) meet the crosswalk top edge; D lands on the median-island tip, an independent sanity check.",
+  "note": "Fitted by scripts/calibrate_camera.py (pinhole camera from ~12k pedestrian heights @1.7 m + lane vanishing point + 14 m stop line). World frame: origin = stop_line_near left end, x along the stop line, y towards the camera side. Valid over the whole road mask (flat-ground assumption).",
+  "camera": {
+   "f_px": 4912.2,
+   "pitch_deg": 15.65,
+   "roll_deg": -2.757,
+   "yaw_deg": 33.63,
+   "height_m": 12.94
+  },
   "image_points": [
    [
-    0.15,
-    0.487
+    0.275,
+    0.3
    ],
    [
-    0.485,
-    0.423
+    0.5,
+    0.3
    ],
    [
-    0.569,
-    0.486
+    0.275,
+    0.47
    ],
    [
-    0.212,
-    0.555
+    0.5,
+    0.47
+   ],
+   [
+    0.725,
+    0.47
+   ],
+   [
+    0.95,
+    0.47
+   ],
+   [
+    0.275,
+    0.64
+   ],
+   [
+    0.5,
+    0.64
+   ],
+   [
+    0.725,
+    0.64
+   ],
+   [
+    0.95,
+    0.64
+   ],
+   [
+    0.05,
+    0.81
+   ],
+   [
+    0.275,
+    0.81
+   ],
+   [
+    0.5,
+    0.81
+   ],
+   [
+    0.725,
+    0.81
+   ],
+   [
+    0.95,
+    0.81
+   ],
+   [
+    0.05,
+    0.98
+   ],
+   [
+    0.275,
+    0.98
+   ],
+   [
+    0.5,
+    0.98
+   ],
+   [
+    0.725,
+    0.98
+   ],
+   [
+    0.95,
+    0.98
    ]
   ],
   "world_points_m": [
    [
-    0,
-    0
+    12.219,
+    17.077
    ],
    [
-    14,
-    0
+    23.699,
+    13.13
    ],
    [
-    14,
-    5
+    4.668,
+    -0.525
    ],
    [
-    0,
-    5
+    12.699,
+    -3.926
+   ],
+   [
+    21.255,
+    -7.55
+   ],
+   [
+    30.389,
+    -11.418
+   ],
+   [
+    0.338,
+    -10.62
+   ],
+   [
+    6.506,
+    -13.528
+   ],
+   [
+    12.988,
+    -16.583
+   ],
+   [
+    19.807,
+    -19.798
+   ],
+   [
+    -7.28,
+    -14.746
+   ],
+   [
+    -2.47,
+    -17.167
+   ],
+   [
+    2.535,
+    -19.686
+   ],
+   [
+    7.747,
+    -22.31
+   ],
+   [
+    13.181,
+    -25.045
+   ],
+   [
+    -8.509,
+    -19.614
+   ],
+   [
+    -4.439,
+    -21.756
+   ],
+   [
+    -0.229,
+    -23.971
+   ],
+   [
+    4.129,
+    -26.264
+   ],
+   [
+    8.642,
+    -28.639
    ]
   ]
  },
@@ -533,6 +668,38 @@
     "unclassified"
    ],
    "note": "Carriageway leaving the intersection, away from the camera. Direction = auto cluster n=44."
+  }
+ ],
+ "bus_stops": [
+  {
+   "id": "bus_stop_far_road",
+   "polygon": [
+    [
+     0.22,
+     0.125
+    ],
+    [
+     0.4,
+     0.165
+    ],
+    [
+     0.56,
+     0.205
+    ],
+    [
+     0.56,
+     0.235
+    ],
+    [
+     0.4,
+     0.215
+    ],
+    [
+     0.22,
+     0.17
+    ]
+   ],
+   "note": "Kerb lane at the 'OQ' bus stop: buses dwell 20-30 s here; not a jam, not a stopped vehicle."
   }
  ]
 }

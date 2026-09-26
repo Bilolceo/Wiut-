@@ -89,6 +89,45 @@ def _make_analyzers(cfg: dict) -> tuple:
     return tuple(analyzers)
 
 
+@lru_cache(maxsize=1)
+def get_vlm_backend(model_dir: str):
+    """Qwen3-VL loaded once per process (~4.3 GB); None if the weights are not there."""
+    if not Path(model_dir).is_dir():
+        log.warning("VLM weights not found at %s: verifier disabled, its classes will not be emitted", model_dir)
+        return None
+    from src.verify.vlm import QwenVLBackend  # deferred: pulls in transformers
+
+    return QwenVLBackend(model_dir)
+
+
+def verify(candidates: list[Candidate], video_path: str, store, scene: Scene, meta, cfg: dict, deadline: float) -> list[Candidate]:
+    """Run the VLM verifier on the classes that need it; a failure drops only those classes, never the video."""
+    vcfg = cfg.get("verifier", {})
+    labels = list(vcfg.get("labels", []))  # priority order
+    if not vcfg.get("enabled") or not any(c.label in labels for c in candidates):
+        return candidates
+    try:
+        backend = get_vlm_backend(str(repo_path(vcfg["model_dir"])))
+        if backend is None:
+            return [c for c in candidates if c.label not in labels]
+        from src.verify.vlm import Verifier
+
+        alignments = store.extras.get("alignments") or []
+        H = np.array(alignments[-1][1]) if alignments else scene.alignment_for(store.video_id, (meta.width, meta.height))
+        H_inv = np.linalg.inv(H)
+        ref_w, ref_h = scene.reference_size((meta.width, meta.height))
+
+        def to_video(x_norm: float, y_norm: float) -> tuple[float, float]:
+            q = H_inv @ np.array([x_norm * ref_w, y_norm * ref_h, 1.0])
+            return q[0] / q[2] / meta.width, q[1] / q[2] / meta.height
+
+        verifier = Verifier(backend, labels, vcfg.get("max_calls", 30), vcfg.get("threshold", 0.5))  # labels keep config order
+        return verifier.filter(candidates, video_path, store, to_video, deadline)
+    except Exception:
+        log.exception("VLM verification failed on %s; dropping %s", video_path, sorted(labels))
+        return [c for c in candidates if c.label not in labels]
+
+
 def run_rules(track_store, scene: Scene, light_log: dict, enabled: set[str]) -> list[Candidate]:
     """Run every enabled rule; a failing rule is logged and skipped, never fatal."""
     candidates: list[Candidate] = []
@@ -132,6 +171,9 @@ def detect_events_impl(video_path: str, perception=None) -> tuple[list[list], di
 
     enabled = {name for name, c in thresholds["classes"].items() if c.get("enabled")}
     candidates = run_rules(store, scene, light_log, enabled)
+    t_rules = time.perf_counter()
+    verify_deadline = t0 + cfg.get("verifier", {}).get("deadline_factor", 1.3) * meta.duration_sec
+    candidates = verify(candidates, video_path, store, scene, meta, cfg, verify_deadline)
     events = finalize(candidates, meta.duration_sec, thresholds)
     t_end = time.perf_counter()
 
@@ -142,7 +184,8 @@ def detect_events_impl(video_path: str, perception=None) -> tuple[list[list], di
         "truncated_at_sec": store.extras.get("truncated_at_sec"),
         "sec_model_load": round(t_model - t0, 2),
         "sec_tracking": round(t_tracks - t_model, 2),
-        "sec_rules_post": round(t_end - t_tracks, 2),
+        "sec_rules": round(t_rules - t_tracks, 2),
+        "sec_verify_post": round(t_end - t_rules, 2),
         "runtime_factor": round((t_end - t0) / max(meta.duration_sec, 1e-6), 3),
         "candidates": candidates,
         "track_store": store,

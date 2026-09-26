@@ -13,6 +13,7 @@ from __future__ import annotations
 import numpy as np
 
 from src.events.base import Candidate, flags_to_segments, nearest_in_time
+from src.scene.geometry import in_any_zone
 
 CRAWL_SPEED_MPS = 1.5  # ~5.4 km/h
 MIN_DURATION_SEC = 15.0  # a brief red-light stop is not congestion
@@ -81,6 +82,8 @@ class CongestionRule:
                     if not pts:
                         continue
                     p = pts[-1]
+                    if in_any_zone((p.x_norm, p.y_norm), scene.bus_stops):
+                        continue  # a bus dwelling at the stop (or the car waiting behind it) is not a jam
                     lane = scene.lane_at(p.x_norm, p.y_norm)
                     if lane is None or lane.id not in lane_ids:
                         continue

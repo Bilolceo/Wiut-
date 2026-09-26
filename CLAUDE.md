@@ -27,8 +27,10 @@ decode (every 3rd frame ≈ 10 fps of 29.97 fps 4K; grab/retrieve, no seeking)
 → YOLO11n @960 + BoT-SORT without GMC (configs/tracker_botsort.yaml) + traffic-light HSV with lamp-position check
   + dual-MOG2 static-object monitor → track store (reference-frame normalized coords + metres via homography)
 → 14 event rules (src/events/, registry.py) → post-processing (src/post/postprocess.py).
-VLM verifier (Qwen3-VL-2B) is NOT implemented yet; accident/near_miss/fire_smoke are low-conf candidates, disabled.
-Part B: src/risk/estimator.py — YOLO11n @640 every 3rd frame + ByteTrack → TTC/DRAC → hand sigmoid → EMA.
+→ VLM verifier (src/verify/vlm.py, Qwen3-VL-2B fp16/SDPA, P(yes) from logits, ≤30 calls/video, priority accident first)
+  confirms accident/near_miss/fire_smoke/road_obstacle (rule conf < min_conf until verified).
+Part B: src/risk/estimator.py — YOLO11n @640 every 3rd frame + ByteTrack → TTC/DRAC → sigmoid (0.5 at ttc_half) → min over 5 steps → EMA.
+Metres: homography fitted by scripts/calibrate_camera.py (pedestrian heights + lane VP + 14 m stop line), valid over the whole road.
 Enabled classes live in configs/thresholds.yaml (macro-F1: enable a class only after checking it by eye on video).
 Scene geometry: configs/scene_manual.json (hand-drawn on C3896 @ 5 s) → configs/scene.json (+ alignments, auto_movements).
 
@@ -38,6 +40,8 @@ Scene geometry: configs/scene_manual.json (hand-drawn on C3896 @ 5 s) → config
 - Camera shifts up to ~140 px between recordings and ~15 px within one: always align at runtime.
 - Full 8-DOF homography for alignment blows up with few matches (dusk vs day): use 4-DOF similarity.
 - Check every rule change on real frames (contact sheets), not only on synthetic tests.
+- Stationary vehicles have random headings (box jitter): judge direction only while moving (wrong_way had 325 false candidates).
+- Check a risk formula can actually reach 0.5 from each term alone; simulate Part B offline on cached tracks before a harness run.
 
 ## Layout
 solution.py (thin wrapper → src/), run_submission.py, evaluate.py, requirements.txt (pinned ==), Dockerfile,

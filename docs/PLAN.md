@@ -2,23 +2,23 @@
 
 Sep 26, 2026 · @Bilol Pardabaev
 
-## 0. Joriy holat (2026-09-26)
+## 0. Joriy holat (2026-09-26, yakuniy harness yugurishi)
 
 **Tayyor va real videoda tekshirilgan:**
-- Part A end-to-end: `solution.detect_events` → `src/detect.py`. 14 ta qoida ham yozilgan va unit-testlangan (73 test).
-- Chiqariladigan klasslar (`configs/thresholds.yaml`): red_light, stop_line, jaywalking, failure_to_yield, stopped_vehicle. Har biri contact-sheet orqali ko'z bilan tekshirildi.
-- Qolgan 9 klass (wrong_way, illegal_turn, illegal_u_turn, solid_line_crossing, congestion, road_obstacle, fire_smoke, accident, near_miss) — kod bor, lekin o'chiq: macro-F1'da tasdiqlanmagan klass zarar.
-- Sahna geometriyasi v2 (`configs/scene_manual.json`), 4 videoda overlay bilan tasdiqlangan. Svetofor: mashina signali — o'rta oroldagi bosh; chap ustundagisi piyoda signali.
-- Kamera alignment ish vaqtida (ORB + 4-DOF similarity, har 10 s). Test videolari ham avtomatik moslashadi.
-- Part B baseline: TTC/DRAC → sigmoid → EMA; faqat metrik kalibrlash ishonchli zonada. Sample'larda o'rtacha risk ≈ 0.06, 0.5 dan yuqori kadrlar ≈ 1 %.
-- Runtime (Apple M4, MPS): Part A ≈ 0.5×, Part B ≈ 0.5×, jami ≈ 1.0–1.1× (limit 3×).
+- Part A end-to-end, 14 qoida (85 unit test). Chiqariladigan 10 klass: red_light, stop_line, jaywalking, failure_to_yield, stopped_vehicle, congestion, wrong_way + VLM tasdiqlagandagina accident, near_miss, road_obstacle.
+- O'chiq: illegal_turn (lanes[].turn_allowed noma'lum), illegal_u_turn (zona qonuniyligi tasdiqlanmagan), solid_line_crossing, fire_smoke.
+- VLM verifier (Qwen3-VL-2B, P(yes) logitlardan, ≤30 chaqiruv/video): sample'lardagi 98 ta yolg'on kandidatning 98 tasini rad etdi; "avtobus bormi" 0.995 / "fil bormi" 0.002. Recall tekshirilmagan (sample'larda avariya yo'q).
+- Metrik kalibrlash (`scripts/calibrate_camera.py`): piyoda bo'ylari (≈4.4k) + polosa VP + 14 m stop chizig'i; ikki mustaqil masshtab 3 % ichida mos. Butun yo'lda amal qiladi (eski 4-nuqtali homografiya uzoq hududda 40–50 % kam ko'rsatardi).
+- wrong_way: 325 → 0 yolg'on kandidat (harakatsiz mashinalarning "yo'nalishi" shovqin edi). congestion: svetoforga bog'langan, avtobus bekati zonasi chiqarilgan.
+- Part B: TTC/DRAC → sigmoid (ttc_half) → 0.5 s barqarorlik → EMA; butun yo'l (≤ 60 m). Sample'larda risk o'rtacha ≈ 0.06–0.08, 0.5 dan yuqori 0.1–1.6 % kadr.
+- Harness (Apple M4, MPS): 57 event, VALID; jami 1.59–1.70× (Part A ≈ 1.1× shundan VLM ≈ 0.3×, Part B ≈ 0.5×). Limit 3×, maqsad 1.5× dan biroz yuqori.
+- Sayt: `site/` (statik, 7 bo'lim), GitHub Pages workflow.
 
-**Hali yo'q / ochiq xavflar:**
-- **T4'da tekshirilmagan**: torch+CUDA fp16, haqiqiy runtime, NVDEC. Colab/Kaggle T4'da `run_submission.py` ni bitta videoda ishga tushirish shart.
-- Ground truth yo'q (`labels/dev_gt.json`) — chegaralar faqat ko'z bilan sozlangan; annotatsiya bo'lgach `evaluate.py --gt` bilan tuning qilinadi.
-- VLM verifier (7-bo'lim) — yo'q; accident/near_miss/fire_smoke unga bog'liq.
-- Homografiya faqat stop chizig'i / asosiy zebra atrofida ishonchli; chorraha old plani uchun ko'proq nuqta bilan qayta kalibrlash kerak (Part B ham shunga bog'liq).
-- lanes[].turn_allowed tasdiqlanmagan → illegal_turn o'chiq. Tracker 10 fps'da ID almashtiradi (C3896: 340 s da 1214 trek).
+**Ochiq xavflar:**
+- **T4'da tekshirilmagan**: torch+CUDA fp16, Qwen3-VL fp16 (T4'da bf16 yo'q) va haqiqiy runtime. Birinchi navbatdagi ish.
+- Ground truth yo'q — chegaralar ko'z bilan sozlangan; `labels/dev_gt.json` kerak.
+- VLM recall noma'lum; fire_smoke monitori real videoda sinalmagan.
+- Tracker 10 fps'da ID almashtiradi; lanes[].turn_allowed tasdiqlanmagan.
 
 ## 1. Maqsad va ball matematikasi
 

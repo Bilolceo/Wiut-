@@ -29,7 +29,7 @@ class FakePerception:
     def track_frame(self, frame):
         t = self.calls * 3 / FPS  # called on every 3rd frame
         self.calls += 1
-        s = 0.03 * t  # normalized units per second
+        s = 0.06 * t  # normalized units per second (~3 m/s per car near the stop line)
         if self.closing:
             xa, xb = 0.20 + s, 0.44 - s
         else:
@@ -90,3 +90,40 @@ def test_worst_conflict_ignores_jitter_level_closing():
     cfg = load_yaml("risk.yaml")
     states = [("car", np.array([0.0, 0.0]), np.array([5.0, 0.0])), ("car", np.array([6.0, 0.0]), np.array([4.5, 0.0]))]
     assert worst_conflict(states, cfg) == (None, 0.0)  # closing at 0.5 m/s: noise, not a conflict
+
+
+def test_risk_formula_is_one_half_at_ttc_half_and_low_without_conflict():
+    """Regression: the old formula could never exceed ~0.35 from TTC alone."""
+    from src.config import load_yaml
+    from src.risk.estimator import risk_from_conflict
+
+    cfg = load_yaml("risk.yaml")
+    assert abs(risk_from_conflict(cfg["ttc_half_sec"], 0.0, cfg) - 0.5) < 1e-9
+    assert risk_from_conflict(0.0, 0.0, cfg) > 0.9
+    assert risk_from_conflict(None, 0.0, cfg) < 0.06
+
+
+def test_single_step_spike_does_not_raise_the_score():
+    from src.risk import estimator as E
+
+    est = CausalRiskEstimator(perception_factory=lambda: FakePerception(False))
+    est.reset({"video_id": "x.mp4", "fps": FPS, "width": 64, "height": 36, "n_frames": 30})
+    calls = iter([(0.1, 0.0)] + [(None, 0.0)] * 20)  # one step with TTC 0.1 s, then nothing
+    orig = E.worst_conflict
+    E.worst_conflict = lambda states, cfg: next(calls)
+    try:
+        scores = [est.step(np.zeros((36, 64, 3), np.uint8), i / FPS) for i in range(60)]
+    finally:
+        E.worst_conflict = orig
+    assert max(scores) < 0.2
+
+
+def test_calibrated_homography_is_metric():
+    """scripts/calibrate_camera.py output: stop line ~14 m (4 lanes), same zebra equally wide left/right of the island."""
+    from src.detect import get_scene
+
+    s = get_scene()
+    d = lambda a, b: float(np.linalg.norm(np.subtract(s.to_metres(*a), s.to_metres(*b))))
+    assert 12.5 < d((0.150, 0.487), (0.485, 0.423)) < 15.5
+    left, right = d((0.40, 0.5185), (0.40, 0.5570)), d((0.80, 0.4567), (0.80, 0.4847))
+    assert abs(left - right) / left < 0.15

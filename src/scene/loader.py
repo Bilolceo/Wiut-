@@ -59,6 +59,7 @@ class Scene:
     raw: dict
     refuges: list[Zone] = field(default_factory=list)  # islands on the carriageway where pedestrians may wait
     solid_lines: list[Zone] = field(default_factory=list)  # polylines (Zone.polygon holds the vertices)
+    bus_stops: list[Zone] = field(default_factory=list)  # vehicles dwelling here are neither jams nor breakdowns
     _H_cache: np.ndarray | None = field(default=None, init=False, repr=False)
     _H_computed: bool = field(default=False, init=False, repr=False)
 
@@ -142,6 +143,7 @@ def load_scene(path: str | Path) -> Scene:
     no_u_turn = [Zone(z["id"], _poly(z["polygon"])) for z in raw.get("no_u_turn_zones", [])]
     refuges = [Zone(z["id"], _poly(z["polygon"])) for z in raw.get("refuges", [])]
     solid_lines = [Zone(z["id"], _poly(z["line"])) for z in raw.get("solid_lines", [])]
+    bus_stops = [Zone(z["id"], _poly(z["polygon"])) for z in raw.get("bus_stops", [])]
     intersection = _poly(raw["intersection"]["polygon"]) if raw.get("intersection") else None
     road_mask = _poly(raw["road_mask"]["polygon"]) if raw.get("road_mask") else None
     return Scene(
@@ -158,4 +160,5 @@ def load_scene(path: str | Path) -> Scene:
         raw=raw,
         refuges=refuges,
         solid_lines=solid_lines,
+        bus_stops=bus_stops,
     )

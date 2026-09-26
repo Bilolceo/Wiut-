@@ -91,8 +91,8 @@ def draw(scene: Scene, frame: np.ndarray, video_stem: str, out_w: int = 1920) ->
     H = scene.homography_matrix()
     if H is not None:
         to_image = np.linalg.inv(H)  # world metres -> reference normalized
-        for a in range(-10, 31, 5):  # lines along x (across lanes) and along y (along travel)
-            for line in ([(a, b) for b in np.linspace(-15, 25, 41)], [(b, a) for b in np.linspace(-10, 30, 41)]):
+        for a in range(-30, 61, 5):  # 5 m ground grid: lines along x (across lanes) and along y (along travel)
+            for line in ([(a, b) for b in np.linspace(-35, 60, 96)], [(b, a) for b in np.linspace(-30, 60, 91)]):
                 world = np.array(line, dtype=np.float64).reshape(-1, 1, 2)
                 ref = cv2.perspectiveTransform(world, to_image).reshape(-1, 2)
                 ok = (ref > -0.2).all(axis=1) & (ref < 1.2).all(axis=1)

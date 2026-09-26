@@ -10,7 +10,7 @@ light_log we fall back to the old proximity-only heuristic.
 from __future__ import annotations
 
 from src.events.base import Candidate, flags_to_segments, nearest_in_time
-from src.scene.geometry import point_segment_distance
+from src.scene.geometry import in_any_zone, point_segment_distance
 
 MIN_STATIONARY_SEC = 10.0
 MAX_DISPLACEMENT_M = 1.0
@@ -39,7 +39,9 @@ class StoppedVehicleRule:
         for track in track_store.vehicle_tracks():
             flags: list[tuple[float, bool]] = []
             for p in track.points:
-                stationary = track.is_stationary(p.t_sec, MIN_STATIONARY_SEC, MAX_DISPLACEMENT_M)
+                stationary = track.is_stationary(p.t_sec, MIN_STATIONARY_SEC, MAX_DISPLACEMENT_M) and not in_any_zone(
+                    (p.x_norm, p.y_norm), scene.bus_stops
+                )
                 queued = stationary and _queued_at_signal(p.x_norm, p.y_norm, p.t_sec, scene, light_log)
                 flags.append((p.t_sec, stationary and not queued))
             for start, end in flags_to_segments(flags, min_duration_sec=1.0, merge_gap_sec=2.0):
