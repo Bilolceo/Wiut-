@@ -6,3 +6,5 @@ __pycache__/
 /predictions.json
 docs/frames/
 .DS_Store
+/*.pt
+docs/scene_debug/

@@ -1,0 +1,28 @@
+{
+  "reference_video": "C3896.MP4",
+  "note": "DRAFT v2 (manual, by eye, corrected against real frame overlay per teammate's report). crosswalks/stop_lines/traffic_lights/no_u_turn_zones/intersection/road_mask are hand-estimated in normalized [0,1] coords on the C3896 reference frame (1280x720 as viewed). lanes[] here are a fallback only -- build_scene.py overwrites lanes[] with data-driven clusters from tracked trajectories across all 4 sample videos. road_mask and intersection were NOT re-verified in v2 -- still v1 estimates.",
+  "crosswalks": [
+    {"id": "crosswalk_main", "polygon": [[0.18, 0.58], [0.61, 0.50], [1.0, 0.45], [1.0, 0.42], [0.62, 0.45], [0.20, 0.52]], "note": "corrected: runs from left curb across near carriageway all the way to the right edge, past the median"},
+    {"id": "crosswalk_secondary", "polygon": [[0.137, 0.636], [0.437, 0.966], [0.363, 1.0], [0.063, 0.704]], "note": "corrected: this is the foreground diagonal crosswalk near the tactile-paving triangles, NOT the area after the median"}
+  ],
+  "stop_lines": [
+    {"id": "stop_line_near", "line": [[0.15, 0.49], [0.53, 0.42]], "controlled_by": "traffic_light_gantry_mid"}
+  ],
+  "traffic_lights": [
+    {"id": "traffic_light_pole_left", "roi": [0.12, 0.43, 0.16, 0.49], "lanes": ["near_carriageway"]},
+    {"id": "traffic_light_gantry_mid", "roi": [0.36, 0.22, 0.40, 0.30], "lanes": ["near_carriageway"]},
+    {"id": "traffic_light_median", "roi": [0.60, 0.33, 0.64, 0.40], "lanes": ["near_carriageway_right"]}
+  ],
+  "no_u_turn_zones": [
+    {"id": "median_no_uturn", "polygon": [[0.58, 0.35], [0.66, 0.32], [0.68, 0.40], [0.60, 0.43]]}
+  ],
+  "intersection": {"polygon": [[0.20, 0.55], [0.72, 0.46], [1.0, 0.60], [1.0, 1.0], [0.0, 1.0], [0.0, 0.63]], "note": "NOT re-verified in v2"},
+  "road_mask": {"polygon": [[0.03, 0.60], [0.01, 0.35], [0.04, 0.20], [0.33, 0.04], [0.60, 0.02], [0.68, 0.08], [0.66, 0.20], [0.78, 0.24], [0.90, 0.30], [1.0, 0.40], [1.0, 1.0], [0.0, 1.0]], "note": "NOT re-verified in v2"},
+  "homography": {
+    "note": "UNVERIFIED - confirm real lane width (typically 3.0-3.5m in UZ) via satellite measurement before trusting speed/TTC in metres. image_points now match corrected crosswalk_main.",
+    "image_points": [[0.18, 0.58], [0.20, 0.52], [0.62, 0.45], [0.61, 0.50]],
+    "world_points_m": [[0, 0], [0, 4], [10.5, 4], [10.5, 0]]
+  },
+  "static_ignore": [],
+  "lanes": []
+}
