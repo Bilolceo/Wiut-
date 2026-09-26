@@ -1,6 +1,8 @@
 """Track store: per-video trajectory table, image-normalized + world metres."""
 from __future__ import annotations
 
+import bisect
+
 from dataclasses import dataclass, field
 
 VEHICLE_CLASSES = {"car", "bus", "truck", "motorcycle"}
@@ -24,6 +26,13 @@ class Track:
     track_id: int
     cls: str  # "car" | "bus" | "truck" | "motorcycle" | "bicycle" | "pedestrian" | ...
     points: list[TrackPoint] = field(default_factory=list)
+    _times: list[float] = field(default_factory=list, repr=False, compare=False)
+
+    def times(self) -> list[float]:
+        """Sorted point timestamps, cached (points are only ever appended in time order)."""
+        if len(self._times) != len(self.points):
+            self._times = [p.t_sec for p in self.points]
+        return self._times
 
     def __len__(self) -> int:
         return len(self.points)
@@ -34,7 +43,21 @@ class Track:
         return self.points[-1].t_sec - self.points[0].t_sec
 
     def points_in_window(self, t_end: float, window_sec: float) -> list[TrackPoint]:
-        return [p for p in self.points if t_end - window_sec <= p.t_sec <= t_end]
+        times = self.times()
+        lo = bisect.bisect_left(times, t_end - window_sec - 1e-9)
+        hi = bisect.bisect_right(times, t_end + 1e-9)
+        return self.points[lo:hi]
+
+    def at(self, t: float, max_gap_sec: float = 0.25) -> TrackPoint | None:
+        """The point observed nearest to time t, if within `max_gap_sec` (points are time-ordered)."""
+        times = self.times()
+        i = bisect.bisect_left(times, t)
+        best = None
+        for j in (i - 1, i):
+            if 0 <= j < len(times) and abs(times[j] - t) <= max_gap_sec:
+                if best is None or abs(times[j] - t) < abs(best.t_sec - t):
+                    best = self.points[j]
+        return best
 
     def is_stationary(self, t_end: float, window_sec: float, max_disp_m: float = 1.0) -> bool:
         """True if every point in [t_end - window_sec, t_end] stays within
@@ -97,6 +120,11 @@ class TrackStore:
     video_id: str
     fps: float
     tracks: dict[int, Track] = field(default_factory=dict)
+    # Per-video outputs of frame-level analyzers (e.g. static-object and
+    # fire/smoke monitors), keyed by analyzer name -- consumed by the rules
+    # that are not trajectory-based (road_obstacle, fire_smoke).
+    extras: dict = field(default_factory=dict)
+    duration_sec: float = 0.0
 
     def add_point(self, track_id: int, cls: str, point: TrackPoint) -> None:
         tr = self.tracks.get(track_id)
@@ -107,6 +135,9 @@ class TrackStore:
 
     def vehicle_tracks(self) -> list[Track]:
         return [t for t in self.tracks.values() if t.cls in VEHICLE_CLASSES]
+
+    def pedestrian_tracks(self) -> list[Track]:
+        return [t for t in self.tracks.values() if t.cls == "pedestrian"]
 
     def sample_times(self) -> list[float]:
         """All distinct timestamps across every track, sorted -- the frames a

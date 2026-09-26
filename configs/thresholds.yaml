@@ -1,0 +1,21 @@
+# Which classes detect_events emits. Metric = macro F1 over classes, and a
+# predicted class that is absent from the test set adds a 0 -- so a class is
+# enabled only after its rule was checked on real sample video. Candidates
+# below min_conf or shorter than min_duration_sec are dropped; same-class
+# segments closer than merge_gap_sec are merged (and never overlap).
+merge_gap_sec: 1.5
+classes:
+  red_light:           {enabled: true,  min_conf: 0.5, min_duration_sec: 0.5}
+  stop_line:           {enabled: true,  min_conf: 0.5, min_duration_sec: 1.0}
+  jaywalking:          {enabled: true,  min_conf: 0.5, min_duration_sec: 1.5}
+  failure_to_yield:    {enabled: true,  min_conf: 0.5, min_duration_sec: 0.5}
+  stopped_vehicle:     {enabled: true,  min_conf: 0.5, min_duration_sec: 1.0}
+  congestion:          {enabled: false, min_conf: 0.5, min_duration_sec: 15.0}   # no real jam in the samples to validate on
+  wrong_way:           {enabled: false, min_conf: 0.5, min_duration_sec: 1.0}   # needs verified lanes[]
+  illegal_turn:        {enabled: false, min_conf: 0.5, min_duration_sec: 1.0}   # needs lanes[].turn_allowed
+  illegal_u_turn:      {enabled: false, min_conf: 0.5, min_duration_sec: 2.0}   # zone legality unverified
+  solid_line_crossing: {enabled: false, min_conf: 0.5, min_duration_sec: 0.5}
+  road_obstacle:       {enabled: false, min_conf: 0.4, min_duration_sec: 3.0}
+  fire_smoke:          {enabled: false, min_conf: 0.3, min_duration_sec: 2.0}   # VLM verifier pending
+  accident:            {enabled: false, min_conf: 0.3, min_duration_sec: 1.0}   # VLM verifier pending
+  near_miss:           {enabled: false, min_conf: 0.3, min_duration_sec: 1.0}   # VLM verifier pending

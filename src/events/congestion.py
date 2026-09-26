@@ -3,17 +3,35 @@
 Needs world metres (speed_mps_at) -- a scene.json without a verified
 homography will simply never trigger this rule (speed_mps_at returns None),
 which is the safe failure mode.
+
+A queue at a red light is not congestion: for lanes a traffic light controls
+(traffic_lights[].lanes), a standstill only counts while that light is
+verified green -- traffic that does not move on green is a jam.
 """
 from __future__ import annotations
 
 import numpy as np
 
-from src.events.base import Candidate, flags_to_segments
+from src.events.base import Candidate, flags_to_segments, nearest_in_time
 
 CRAWL_SPEED_MPS = 1.5  # ~5.4 km/h
 MIN_DURATION_SEC = 15.0  # a brief red-light stop is not congestion
 DIRECTION_GROUP_COS = 0.7  # lanes within this cosine similarity share a "direction"
 SAMPLE_STEP_SEC = 1.0
+MAX_LIGHT_GAP_SEC = 1.5
+# Two buses at a stop or one parked car are not a jam (C3896 @ 79-96 s: the
+# far-road bus stop was flagged with 2 vehicles while traffic flowed freely).
+MIN_SLOW_VEHICLES = 5
+
+
+def _signal_allows_flow(lane_ids: set[str], t: float, scene, light_log) -> bool:
+    """False while a light controlling any of these lanes is not verified green."""
+    for tl in scene.traffic_lights:
+        if lane_ids & set(tl.lanes):
+            state = nearest_in_time((light_log or {}).get(tl.id, []), t, MAX_LIGHT_GAP_SEC)
+            if state is None or state.state != "green":
+                return False
+    return True
 
 
 def _group_lanes_by_direction(lanes) -> list[list]:
@@ -74,7 +92,8 @@ class CongestionRule:
                 # require the jam to actually span multiple lanes of the group,
                 # not just one stalled car in one lane
                 is_jam = (
-                    len(speeds) >= 2
+                    _signal_allows_flow(lane_ids, t, scene, light_log)
+                    and len(speeds) >= MIN_SLOW_VEHICLES
                     and len(lanes_with_traffic) >= min(2, len(lane_ids))
                     and (sum(1 for s in speeds if s < CRAWL_SPEED_MPS) / len(speeds)) >= 0.8
                 )

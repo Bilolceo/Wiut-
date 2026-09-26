@@ -1,0 +1,15 @@
+# Part A perception + time budget. See docs/PLAN.md section 9.
+perception:
+  model: weights/yolo11n.pt   # COCO-pretrained; swap for a fine-tuned checkpoint later
+  imgsz: 960                  # 640 misses distant pedestrians on the 4K frame
+  conf: 0.3
+  tracker: configs/tracker_botsort.yaml
+  device: auto                # auto = cuda > mps > cpu; fp16 only on cuda
+target_fps: 10.0              # every 3rd frame of 29.97 fps video
+analyzers:
+  static_objects: true        # road_obstacle
+  fire_smoke: false           # fire_smoke (class disabled -> skip the cost)
+budget:
+  part_a_max_factor: 1.5      # stop decoding at 1.5x duration; rules run on what was seen
+seed: 1234
+realign_every_sec: 10.0     # camera drifts ~15 px/10 s at 4K; re-estimate alignment (~0.15 s each)

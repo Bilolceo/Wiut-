@@ -8,7 +8,7 @@ from typing import Iterator
 import cv2
 import numpy as np
 
-TARGET_FPS = 12.5  # per CLAUDE.md architecture: decode at 12.5 fps
+TARGET_FPS = 10.0  # every 3rd frame of the 29.97 fps sample videos (docs/PLAN.md section 9)
 
 
 @dataclass
@@ -46,10 +46,11 @@ def read_meta(video_path: str | Path) -> VideoMeta:
 def sample_frames(video_path: str | Path, target_fps: float = TARGET_FPS) -> Iterator[Frame]:
     """Yield frames at (approximately) `target_fps`.
 
-    Decodes sequentially with no seeking (cap.read() in a loop, skipping
-    frames by stride) so behaviour is identical across whatever backend
+    Decodes sequentially with no seeking (grab() every frame, retrieve()
+    only the sampled ones) so behaviour is identical across whatever backend
     OpenCV picks -- seeking (CAP_PROP_POS_FRAMES) is not frame-exact on all
     codecs and would break determinism (CLAUDE.md: "fixed frame sampling").
+    Skipping retrieve() saves the 4K colour conversion on unsampled frames.
     """
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -59,10 +60,12 @@ def sample_frames(video_path: str | Path, target_fps: float = TARGET_FPS) -> Ite
     frame_idx = 0
     try:
         while True:
-            ok, frame = cap.read()
-            if not ok:
+            if not cap.grab():
                 break
             if frame_idx % stride == 0:
+                ok, frame = cap.retrieve()
+                if not ok:
+                    break
                 yield Frame(frame_idx=frame_idx, t_sec=frame_idx / native_fps, bgr=frame)
             frame_idx += 1
     finally:

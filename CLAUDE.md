@@ -21,13 +21,23 @@ A = macro F1 over classes, temporal IoU 0.3/0.5/0.7. Predicting a class absent f
 - Deterministic: fixed seeds, cudnn.deterministic=True, fixed frame sampling, greedy VLM decoding.
 - Same-class segments must not overlap; 0 <= start < end <= duration. Never crash: catch, log, return [] / last score.
 
-## Architecture (see docs/PLAN.md sections 3–9)
-decode (every 2nd frame ≈ 15 fps; source is 29.97 fps) → perception (YOLO11m + BoT-SORT, traffic-light HSV, MOG2 fwd/bwd, open-vocab fire/smoke)
-→ track store (metres via homography) → event rules (one module per class) → VLM verifier
-(Qwen3-VL-2B-Instruct fp16, only on candidate windows, <= 30 calls/video) → post-processing
-(hysteresis, merge < 1.5 s, min duration, native 29.97 fps boundary refine, per-class thresholds).
-Part B: YOLO11s every 3rd frame + ByteTrack → TTC/PET/DRAC features → LightGBM/sigmoid calibrator → EMA.
-Scene geometry lives in `configs/scene.json`; all thresholds in `configs/*.yaml` (no magic numbers in code).
+## Architecture (see docs/PLAN.md sections 3–9; current state)
+decode (every 3rd frame ≈ 10 fps of 29.97 fps 4K; grab/retrieve, no seeking)
+→ runtime camera alignment (src/scene/align.py vs configs/reference_frame.jpg, re-estimated every 10 s: the mount drifts)
+→ YOLO11n @960 + BoT-SORT without GMC (configs/tracker_botsort.yaml) + traffic-light HSV with lamp-position check
+  + dual-MOG2 static-object monitor → track store (reference-frame normalized coords + metres via homography)
+→ 14 event rules (src/events/, registry.py) → post-processing (src/post/postprocess.py).
+VLM verifier (Qwen3-VL-2B) is NOT implemented yet; accident/near_miss/fire_smoke are low-conf candidates, disabled.
+Part B: src/risk/estimator.py — YOLO11n @640 every 3rd frame + ByteTrack → TTC/DRAC → hand sigmoid → EMA.
+Enabled classes live in configs/thresholds.yaml (macro-F1: enable a class only after checking it by eye on video).
+Scene geometry: configs/scene_manual.json (hand-drawn on C3896 @ 5 s) → configs/scene.json (+ alignments, auto_movements).
+
+## Lessons from the sample videos (keep these in mind)
+- Traffic-light lamp is ~0.2–1 % of its ROI in daylight: count lit pixels, never use a fraction-of-ROI floor.
+- Left pole signal is a PEDESTRIAN head; the vehicle signal for the queue approach is the median head.
+- Camera shifts up to ~140 px between recordings and ~15 px within one: always align at runtime.
+- Full 8-DOF homography for alignment blows up with few matches (dusk vs day): use 4-DOF similarity.
+- Check every rule change on real frames (contact sheets), not only on synthetic tests.
 
 ## Layout
 solution.py (thin wrapper → src/), run_submission.py, evaluate.py, requirements.txt (pinned ==), Dockerfile,
@@ -46,6 +56,7 @@ labels/dev_gt.json, tests/, notebooks/ (EDA only), predictions_samples.json, REA
 - python evaluate.py --pred predictions.json --validate-only
 - python evaluate.py --pred predictions.json --gt labels/dev_gt.json
 - pytest -q
+- python scripts/draw_scene.py --scene configs/scene.json --videos data/samples/*.MP4   # geometry overlays
 
 ## Workflow rules for Claude Code
 - Work module by module; after each module: run tests + validate-only, then stop and report.

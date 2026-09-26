@@ -85,12 +85,11 @@ def test_congestion_flags_multi_lane_crawl(scene):
     store = TrackStore(video_id="test", fps=10.0)
     for i in range(21):
         t = float(i)
-        store.add_point(
-            5, "car", TrackPoint(frame_idx=i, t_sec=t, x_norm=0.2, y_norm=0.15, x_m=1.0 + 0.05 * i, y_m=5.0)
-        )
-        store.add_point(
-            6, "car", TrackPoint(frame_idx=i, t_sec=t, x_norm=0.4, y_norm=0.15, x_m=8.0 + 0.05 * i, y_m=5.0)
-        )
+        for k in range(5):  # a jam needs MIN_SLOW_VEHICLES crawling vehicles, not two
+            store.add_point(
+                5 + k, "car",
+                TrackPoint(frame_idx=i, t_sec=t, x_norm=0.1 + 0.1 * k, y_norm=0.15, x_m=1.0 + 7 * k + 0.05 * i, y_m=5.0),
+            )
     cands = CongestionRule().run(store, scene)
     assert cands and cands[0].label == "congestion"
 

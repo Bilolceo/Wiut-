@@ -2,6 +2,24 @@
 
 Sep 26, 2026 · @Bilol Pardabaev
 
+## 0. Joriy holat (2026-09-26)
+
+**Tayyor va real videoda tekshirilgan:**
+- Part A end-to-end: `solution.detect_events` → `src/detect.py`. 14 ta qoida ham yozilgan va unit-testlangan (73 test).
+- Chiqariladigan klasslar (`configs/thresholds.yaml`): red_light, stop_line, jaywalking, failure_to_yield, stopped_vehicle. Har biri contact-sheet orqali ko'z bilan tekshirildi.
+- Qolgan 9 klass (wrong_way, illegal_turn, illegal_u_turn, solid_line_crossing, congestion, road_obstacle, fire_smoke, accident, near_miss) — kod bor, lekin o'chiq: macro-F1'da tasdiqlanmagan klass zarar.
+- Sahna geometriyasi v2 (`configs/scene_manual.json`), 4 videoda overlay bilan tasdiqlangan. Svetofor: mashina signali — o'rta oroldagi bosh; chap ustundagisi piyoda signali.
+- Kamera alignment ish vaqtida (ORB + 4-DOF similarity, har 10 s). Test videolari ham avtomatik moslashadi.
+- Part B baseline: TTC/DRAC → sigmoid → EMA; faqat metrik kalibrlash ishonchli zonada. Sample'larda o'rtacha risk ≈ 0.06, 0.5 dan yuqori kadrlar ≈ 1 %.
+- Runtime (Apple M4, MPS): Part A ≈ 0.5×, Part B ≈ 0.5×, jami ≈ 1.0–1.1× (limit 3×).
+
+**Hali yo'q / ochiq xavflar:**
+- **T4'da tekshirilmagan**: torch+CUDA fp16, haqiqiy runtime, NVDEC. Colab/Kaggle T4'da `run_submission.py` ni bitta videoda ishga tushirish shart.
+- Ground truth yo'q (`labels/dev_gt.json`) — chegaralar faqat ko'z bilan sozlangan; annotatsiya bo'lgach `evaluate.py --gt` bilan tuning qilinadi.
+- VLM verifier (7-bo'lim) — yo'q; accident/near_miss/fire_smoke unga bog'liq.
+- Homografiya faqat stop chizig'i / asosiy zebra atrofida ishonchli; chorraha old plani uchun ko'proq nuqta bilan qayta kalibrlash kerak (Part B ham shunga bog'liq).
+- lanes[].turn_allowed tasdiqlanmagan → illegal_turn o'chiq. Tracker 10 fps'da ID almashtiradi (C3896: 340 s da 1214 trek).
+
 ## 1. Maqsad va ball matematikasi
 
 Maqsad: top-20 ga kirish. Yakuniy ballning 42% i Part A'dan, 25% i saytdan keladi. Lekin eng birinchi shart — paket toza mashinada ishlashi, aks holda 60% (model balli) to'liq nolga tushadi.

@@ -41,8 +41,13 @@ import random
 from collections import defaultdict
 from pathlib import Path
 
+import sys
+
 import cv2
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from src.scene.align import estimate_alignment  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="[build_scene] %(message)s")
 log = logging.getLogger(__name__)
@@ -55,7 +60,6 @@ np.random.seed(SEED)
 VEHICLE_CLASS_IDS = {1: "bicycle", 2: "car", 3: "motorcycle", 5: "bus", 7: "truck"}
 
 GRID = 16  # flow-field grid resolution
-MAX_ALIGN_SHIFT = 0.10  # reject camera alignments that move a frame corner by more than 10% of the width
 
 
 # --------------------------------------------------------------------------- #
@@ -75,52 +79,16 @@ def read_frame(video_path: str, t_sec: float = 5.0) -> np.ndarray:
 
 
 def estimate_homography(moving_frame: np.ndarray, ref_frame: np.ndarray) -> np.ndarray:
-    """Return H such that H @ [x, y, 1] (moving frame) ~= [x, y, 1] (ref frame).
+    """H mapping moving-frame native px -> reference native px (identity if alignment fails).
 
-    The mount only shifts a little between recordings (PLAN.md measured ~100px
-    at 4K for C3902), so a 4-DOF similarity (shift + scale + rotation) is fitted
-    instead of a full 8-DOF homography: with few matches (day vs dusk) a full
-    homography overfits and throws the frame corners thousands of pixels away.
-    CLAHE makes ORB matching more robust to the lighting change. Falls back to
-    identity if matching fails or the fit moves a corner by more than
-    MAX_ALIGN_SHIFT of the frame width.
+    Same estimator the runtime uses (src/scene/align.py: CLAHE + ORB + 4-DOF
+    similarity with a corner-shift sanity check), so offline and online
+    alignments agree.
     """
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    g1 = clahe.apply(cv2.cvtColor(moving_frame, cv2.COLOR_BGR2GRAY))
-    g2 = clahe.apply(cv2.cvtColor(ref_frame, cv2.COLOR_BGR2GRAY))
-    orb = cv2.ORB_create(nfeatures=8000)
-    k1, d1 = orb.detectAndCompute(g1, None)
-    k2, d2 = orb.detectAndCompute(g2, None)
-    if d1 is None or d2 is None or len(k1) < 20 or len(k2) < 20:
-        log.warning("ORB found too few features; using identity alignment")
+    H = estimate_alignment(moving_frame, ref_frame, (ref_frame.shape[1], ref_frame.shape[0]))
+    if H is None:
+        log.warning("alignment failed; using identity")
         return np.eye(3)
-
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
-    matches = bf.knnMatch(d1, d2, k=2)
-    good = [m for m, n in matches if m.distance < 0.75 * n.distance]
-    if len(good) < 15:
-        log.warning("Too few good ORB matches (%d); using identity alignment", len(good))
-        return np.eye(3)
-
-    src = np.float32([k1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-    dst = np.float32([k2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
-    A, inliers = cv2.estimateAffinePartial2D(src, dst, method=cv2.RANSAC, ransacReprojThreshold=5.0)
-    if A is None:
-        log.warning("estimateAffinePartial2D failed; using identity alignment")
-        return np.eye(3)
-    H = np.vstack([A, [0.0, 0.0, 1.0]])
-
-    h, w = moving_frame.shape[:2]
-    corners = np.float32([[0, 0], [w, 0], [0, h], [w, h]])
-    max_move = float(np.max(np.linalg.norm(corners @ A[:, :2].T + A[:, 2] - corners, axis=1)))
-    n_inliers = int(inliers.sum()) if inliers is not None else 0
-    if max_move > MAX_ALIGN_SHIFT * w:
-        log.warning("alignment moves a corner by %.0f px (> %.0f%% of width); using identity", max_move, MAX_ALIGN_SHIFT * 100)
-        return np.eye(3)
-    log.info(
-        "alignment: %d/%d inlier matches, shift (%.0f, %.0f) px, max corner move %.0f px",
-        n_inliers, len(good), A[0, 2], A[1, 2], max_move,
-    )
     return H
 
 
@@ -356,7 +324,10 @@ def main() -> None:
     manual_path = Path(args.manual)
     manual = json.loads(manual_path.read_text()) if manual_path.exists() else {}
     scene = dict(manual)
-    scene["lanes"] = movements
+    # Hand-drawn lanes win: auto clusters from 2 fps tracks are noisy (ID switches
+    # make long jumps), so they are kept for the website/EDA only.
+    scene["lanes"] = manual.get("lanes") or movements
+    scene["auto_movements"] = movements
     scene["camera_alignment"] = {
         "note": "3x3 homography mapping each video's native pixel coords onto the reference video's native pixel coords (identity if ORB alignment failed).",
         "per_video": alignments,

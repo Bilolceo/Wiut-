@@ -70,3 +70,26 @@ def segments_intersect(
 def unit(v: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(v))
     return v / n if n > 1e-9 else v
+
+
+def point_polygon_distance(point: tuple[float, float], polygon: np.ndarray) -> float:
+    """0.0 inside the polygon, else the distance to its nearest edge."""
+    if point_in_polygon(point, polygon):
+        return 0.0
+    n = len(polygon)
+    return min(point_segment_distance(point, np.array([polygon[i], polygon[(i + 1) % n]])) for i in range(n))
+
+
+def in_any_zone(point: tuple[float, float], zones, margin: float = 0.0) -> bool:
+    """True if `point` is inside (or within `margin` of) any zone's polygon."""
+    return any(point_polygon_distance(point, z.polygon) <= margin for z in zones)
+
+
+def polyline_segments(points: np.ndarray):
+    """Consecutive (a, b) vertex pairs of an open polyline."""
+    return [(points[i], points[i + 1]) for i in range(len(points) - 1)]
+
+
+def signed_angle(u: np.ndarray, v: np.ndarray) -> float:
+    """Signed angle in degrees from u to v (image coords, y down: positive = clockwise on screen)."""
+    return float(np.degrees(np.arctan2(u[0] * v[1] - u[1] * v[0], u[0] * v[0] + u[1] * v[1])))

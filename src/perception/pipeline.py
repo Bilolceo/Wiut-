@@ -7,6 +7,7 @@ same method is enough for unit tests.
 """
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import numpy as np
@@ -49,7 +50,11 @@ def build_track_store(
     video_path: str | Path,
     scene: Scene,
     perception,
-    target_fps: float = 12.5,
+    target_fps: float = 10.0,
+    analyzers: tuple = (),
+    deadline: float | None = None,
+    aligner=None,
+    realign_every_sec: float = 10.0,
 ) -> tuple[TrackStore, dict[str, list[tuple[float, LightState]]], VideoMeta]:
     """Run `perception` over sampled frames of `video_path`, aligning every
     detection into the scene's reference-frame coordinate space, and
@@ -57,31 +62,55 @@ def build_track_store(
 
     Returns (track_store, light_log, meta). light_log maps traffic_light id
     -> chronological [(t_sec, LightState), ...] (already majority-smoothed).
+
+    `analyzers` (duck-typed: .name, .update(frame_bgr, t_sec), .result(to_ref))
+    see every sampled frame too; their results land in track_store.extras.
+
+    `deadline` (time.perf_counter() value): stop decoding once passed and
+    return what was seen -- partial events beat a video scored empty for
+    exceeding the harness time budget. store.extras["truncated_at_sec"] marks it.
+
+    `aligner(frame_bgr) -> 3x3 | None` estimates this video's alignment onto
+    the reference frame at runtime (unknown test videos); it runs on the first
+    frame and every `realign_every_sec`, because the mount also drifts slowly
+    within a clip (~15 px at 4K over 10 s on C3896). Without it, the static
+    per-video alignment from scene.json is used.
     """
     video_path = Path(video_path)
     meta = read_meta(video_path)
     video_id = video_path.stem
 
-    H_align = scene.alignment_for(video_id)  # this video's native px -> reference native px
+    # this video's native px -> reference native px (static fallback until the aligner runs)
+    H_align = scene.alignment_for(video_id, (meta.width, meta.height))
     H_inv = np.linalg.inv(H_align)
+    ref_w, ref_h = scene.reference_size((meta.width, meta.height))
 
-    # All sample videos share one physical camera at fixed native resolution
-    # (see docs/PLAN.md section 4); camera_alignment doesn't carry the
-    # reference frame's own size, so this video's own native size is the
-    # correct stand-in unless a future scene.json says otherwise.
-    ref_w = float(scene.camera_alignment.get("reference_frame_size", [meta.width, meta.height])[0])
-    ref_h = float(scene.camera_alignment.get("reference_frame_size", [meta.width, meta.height])[1])
-
-    store = TrackStore(video_id=video_id, fps=meta.fps)
+    store = TrackStore(video_id=video_id, fps=meta.fps, duration_sec=meta.duration_sec)
     raw_light_states: dict[str, list[tuple[float, LightState]]] = {tl.id: [] for tl in scene.traffic_lights}
 
-    # ROI, warped once per video (camera doesn't move within a clip).
-    video_local_rois = {
-        tl.id: _warp_roi_to_video(tl.roi, H_inv, ref_w, ref_h, meta.width, meta.height)
-        for tl in scene.traffic_lights
-    }
+    layouts = {tl.id: tl.layout for tl in scene.traffic_lights}
+
+    def local_rois(H_inv: np.ndarray) -> dict[str, tuple[float, float, float, float]]:
+        return {
+            tl.id: _warp_roi_to_video(tl.roi, H_inv, ref_w, ref_h, meta.width, meta.height)
+            for tl in scene.traffic_lights
+        }
+
+    video_local_rois = local_rois(H_inv)
+    alignments: list[tuple[float, list]] = []
+    next_align_t = 0.0
 
     for frame in sample_frames(video_path, target_fps=target_fps):
+        if deadline is not None and time.perf_counter() > deadline:
+            store.extras["truncated_at_sec"] = frame.t_sec
+            break
+        if aligner is not None and frame.t_sec >= next_align_t:
+            next_align_t = frame.t_sec + realign_every_sec
+            H_new = aligner(frame.bgr)
+            if H_new is not None:
+                H_align, H_inv = H_new, np.linalg.inv(H_new)
+                video_local_rois = local_rois(H_inv)
+                alignments.append((frame.t_sec, H_align.round(4).tolist()))
         for det in perception.track_frame(frame.bgr):
             x_native, y_native = det.cx_norm * meta.width, det.cy_norm * meta.height
             xr, yr = _warp_point(H_align, x_native, y_native)
@@ -104,8 +133,19 @@ def build_track_store(
                 ),
             )
 
+        for analyzer in analyzers:
+            analyzer.update(frame.bgr, frame.t_sec)
+
         for tl_id, roi in video_local_rois.items():
-            raw_light_states[tl_id].append((frame.t_sec, classify_roi(frame.bgr, roi)))
+            raw_light_states[tl_id].append((frame.t_sec, classify_roi(frame.bgr, roi, layouts[tl_id])))
+
+    def to_ref(x_norm: float, y_norm: float) -> tuple[float, float]:
+        xr, yr = _warp_point(H_align, x_norm * meta.width, y_norm * meta.height)
+        return xr / ref_w, yr / ref_h
+
+    for analyzer in analyzers:
+        store.extras[analyzer.name] = analyzer.result(to_ref)
+    store.extras["alignments"] = alignments
 
     light_log = {
         tl_id: list(zip((t for t, _ in entries), smooth_states([s for _, s in entries])))

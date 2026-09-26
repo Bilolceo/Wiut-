@@ -1,106 +1,81 @@
-# WIUT Hackathon 2026 — Computer Vision track: starter kit
+# WIUT Hackathon 2026 — Computer Vision track
 
-Traffic events from a fixed road camera: **detect** them as time segments
-(`[start_sec, end_sec, label]`) and, as a bonus, **anticipate** accidents with a
-causal risk score. Three files; read the task description for the rules.
+Traffic events from a fixed CCTV road camera (Tashkent intersection, 4K @ 29.97 fps):
 
-```
-solution.py          <- the ONLY file you implement (CLASSES, detect_events, RiskEstimator)
-run_submission.py    <- organizers' harness: folder of videos -> predictions.json   (do not modify)
-evaluate.py          <- format check + the official metric                          (do not modify)
-examples/            <- ground_truth.json and predictions.json in the exact format
-requirements.txt     <- numpy + opencv for the harness; add your own deps to YOUR repo
-```
+- **Part A** `detect_events(video)` → `[[start_sec, end_sec, label], ...]` over 14 event classes
+- **Part B** `RiskEstimator.step(frame, t)` → causal P(accident starts within 5 s)
 
-## Quickstart
+Full design and decisions: [`docs/PLAN.md`](docs/PLAN.md). Organizers' starter-kit notes: [`docs/STARTER_KIT.md`](docs/STARTER_KIT.md).
+
+## Install and run
 
 ```bash
-pip install -r requirements.txt
-# 1. implement solution.py
-# 2. label the sample videos yourselves -> my_labels.json (same shape as examples/ground_truth.json)
-python run_submission.py --videos samples --out predictions_samples.json --team <your-team>
-python evaluate.py --pred predictions_samples.json --gt my_labels.json --per-video
-python evaluate.py --pred predictions_samples.json --validate-only        # format check without labels
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt            # pinned ==; Linux wheel of torch includes CUDA (T4)
+./weights/download.sh                      # verifies sha256; yolo11n.pt is also committed (5.6 MB)
+python run_submission.py --videos data/samples --out predictions.json
+python evaluate.py --pred predictions.json --validate-only
+pytest -q                                  # 71 unit tests, no video / GPU needed
 ```
 
-## The interface (`solution.py`)
+The eval machine needs no internet: weights are local and `YOLO_OFFLINE=1` is set before ultralytics loads.
+Minimal Linux images need `libgl1 libglib2.0-0` (ultralytics pulls in `opencv-python`); see `Dockerfile`.
 
-```python
-CLASSES = ["accident", "near_miss", "red_light", "wrong_way", "illegal_u_turn",
-           "stopped_vehicle", "jaywalking", "failure_to_yield", "illegal_turn",
-           "solid_line_crossing", "stop_line", "congestion", "road_obstacle", "fire_smoke"]
+## Architecture
 
-def detect_events(video_path: str) -> list[list]:
-    """Part A: [[start_sec, end_sec, label], ...]; label in CLASSES; same-class segments don't overlap."""
-
-class RiskEstimator:
-    def reset(self, meta: dict) -> None: ...            # meta: video_id, fps, width, height, n_frames
-    def step(self, frame: np.ndarray, t_sec: float) -> float: ...   # BGR uint8 frame -> P(accident within 5 s)
+```
+video ─► decode every 3rd frame (≈10 fps, grab/retrieve, no seeking)
+        ├─► runtime camera alignment (ORB + 4-DOF similarity vs configs/reference_frame.jpg, every 10 s)
+        ├─► YOLO11n @960 + BoT-SORT (no GMC: fixed camera)     ─► track store (reference coords + metres)
+        ├─► traffic-light state (HSV, lamp-position check)        ─► light log
+        └─► static-object monitor (dual MOG2)                    ─► frame extras
+   ─► 14 event rules (src/events/, one module per class) ─► post-processing (enabled classes,
+      min conf / duration, same-class merge, clip) ─► events
 ```
 
-`step` is called for **every frame in order** by the harness; it must not open the
-video itself. Skipping frames internally and returning the last score is fine.
-You may remove ids from `CLASSES`; never add.
+| Component | Learned or rule-based | Where |
+|---|---|---|
+| Road-user detection + tracking | learned (YOLO11n, COCO) + BoT-SORT | `src/perception/detector.py` |
+| Camera alignment across recordings | classical (ORB, RANSAC similarity) | `src/scene/align.py` |
+| Scene geometry (zebras, stop line, islands, lanes) | hand-drawn once on the reference frame | `configs/scene_manual.json` |
+| Traffic-light colour | classical (HSV + lamp position) | `src/perception/traffic_light.py` |
+| Event classes | rules on trajectories, geometry and light state | `src/events/*.py` |
+| Part B risk | TTC / DRAC from causal tracks → hand-set sigmoid → EMA | `src/risk/estimator.py` |
 
-## What we run (offline, one GPU, no internet)
+**Which classes are emitted** is decided in `configs/thresholds.yaml`. The metric is macro-F1 and a predicted
+class absent from the test set scores 0, so a class is enabled only after its rule was checked by eye on the
+sample videos. Enabled: `red_light`, `stop_line`, `jaywalking`, `failure_to_yield`, `stopped_vehicle`.
+The other nine rules are implemented and unit-tested but stay off until validated (see `docs/PLAN.md`).
+
+All thresholds live in `configs/*.yaml` or as named module constants with the sample-video evidence next to them.
+
+## Scene calibration
 
 ```bash
-pip install -r requirements.txt            # or: docker build -t team .
-python run_submission.py --videos /data/test --out predictions.json
-python evaluate.py --pred predictions.json --gt ground_truth.json
+python scripts/build_scene.py --videos data/samples/*.MP4 --ref-video data/samples/C3896.MP4   # alignments + auto movements
+python scripts/draw_scene.py --scene configs/scene.json --videos data/samples/*.MP4             # overlays to check by eye
+python scripts/eda.py --videos data/samples                                                     # resolution, fps, brightness, frames
 ```
 
-Time budget per video: **3 × its duration** for Part A + Part B together; a video
-over budget or a crash scores as empty. Events with a bad label, bad times, or a
-same-class overlap are dropped by the harness and listed in its log. Weights
-≤ 5 GB, shipped in the repo or fetched once by `weights/download.sh` before the
-offline run.
+## Data, models and licences
 
-## predictions.json
+| Item | Source | Licence |
+|---|---|---|
+| Sample videos | WIUT Hackathon 2026 organizers | not redistributed (git-ignored) |
+| YOLO11n weights (COCO-pretrained) | [ultralytics/assets v8.3.0](https://github.com/ultralytics/assets/releases/tag/v8.3.0) | AGPL-3.0 |
+| COCO (detector pre-training) | cocodataset.org | CC BY 4.0 |
+| ultralytics (YOLO, BoT-SORT, ByteTrack) | github.com/ultralytics/ultralytics | AGPL-3.0 |
+| OpenCV | opencv.org | Apache-2.0 |
 
-```json
-{
-  "team": "your-team-name",
-  "videos": {
-    "test_001.mp4": {
-      "events": [[12.4, 18.9, "accident"], [40.0, 43.5, "red_light"]],
-      "risk":   [[0.00, 0.01], [0.04, 0.01], [0.08, 0.02]]
-    },
-    "test_002.mp4": {"events": [], "risk": []}
-  }
-}
-```
+No hosted API is used at inference. No training was done yet; all models are used as released.
 
-`risk` is written by the harness (one `[t_sec, score]` per frame). Keys are file
-names. Every test video must be present, even with `"events": []`.
-Ground truth: `{"test_001.mp4": {"duration": 600.0, "fps": 25.0, "events": [[12.0, 19.0, "accident"]]}}`.
+## Reproducibility
 
-## Metric (exact code in `evaluate.py`)
+Seed 1234 (`configs/runtime.yaml`) for `random`, NumPy and torch; `cudnn.deterministic=True`; fixed frame
+sampling by index; post-processing sorts and rounds outputs to ms.
 
-**Part A.** Per class `c` and per tIoU threshold τ ∈ {0.3, 0.5, 0.7}: greedy
-one-to-one matching by descending IoU; TP/FP/FN pooled over all videos; `F1_c(τ)`.
-`Score_A = mean_c mean_τ F1_c(τ)`. Classes = those in the ground truth or in your
-predictions (a class you predict that never occurs scores 0).
+## Team
 
-**Part B** (`accident` only; H = 5 s, W = 10 s, θ = 0.5). Frames in `[s−H, s)`
-before an accident start `s` are positive; frames inside accidents and around
-near-misses are ignored; the rest negative. `AP` = average precision over frames,
-chance-normalised (`max(0, (AP_raw − r)/(1 − r))`, `r` = positive rate, so a
-constant score gets 0). Alarms = runs of score ≥ θ (runs < 2 s apart merged),
-alarm time = run start; an alarm in `[s−W, s)` of an unmatched accident matches it
-→ `F1_alarm`; `mTTA` = mean of `s − alarm_time` (0 if unmatched).
-`Score_B = 0.4·AP + 0.4·F1_alarm + 0.2·mTTA/W`.
-
-**Model score** `M = 0.7·Score_A + 0.3·Score_B` (M = Score_A if the test set has no
-accidents). Elimination score = 0.6·M + 0.25·Website + 0.15·Code.
-
-## Tips
-
-- Label the sample videos yourselves with the conventions from the task
-  description and run `evaluate.py` against them. Without a dev set you are guessing.
-- Detector + tracker → trajectories; most classes are rules on trajectories plus
-  the scene layout. Learned models help most for `accident` / `near_miss`.
-- Post-process segments: merge fragments, drop sub-second blips, then check F1@0.7.
-- For Part B, time-to-collision from tracks is a strong simple signal; calibrate
-  so that 0.5 means "probably within 5 s". A flat 1.0 scores ≈ 0.
-- Print your runtime early; sampling every 2nd–5th frame is usually enough.
+| Member | Role / what they did |
+|---|---|
+| _to fill_ | |

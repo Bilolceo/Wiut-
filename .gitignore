@@ -1,5 +1,6 @@
 data/
 weights/*.pt
+!weights/yolo11n.pt
 __pycache__/
 *.pyc
 .venv/

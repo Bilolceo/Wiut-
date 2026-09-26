@@ -1,28 +1,538 @@
 {
-  "reference_video": "C3896.MP4",
-  "note": "DRAFT v2 (manual, by eye, corrected against real frame overlay per teammate's report). crosswalks/stop_lines/traffic_lights/no_u_turn_zones/intersection/road_mask are hand-estimated in normalized [0,1] coords on the C3896 reference frame (1280x720 as viewed). lanes[] here are a fallback only -- build_scene.py overwrites lanes[] with data-driven clusters from tracked trajectories across all 4 sample videos. road_mask and intersection were NOT re-verified in v2 -- still v1 estimates.",
-  "crosswalks": [
-    {"id": "crosswalk_main", "polygon": [[0.18, 0.58], [0.61, 0.50], [1.0, 0.45], [1.0, 0.42], [0.62, 0.45], [0.20, 0.52]], "note": "corrected: runs from left curb across near carriageway all the way to the right edge, past the median"},
-    {"id": "crosswalk_secondary", "polygon": [[0.137, 0.636], [0.437, 0.966], [0.363, 1.0], [0.063, 0.704]], "note": "corrected: this is the foreground diagonal crosswalk near the tactile-paving triangles, NOT the area after the median"}
-  ],
-  "stop_lines": [
-    {"id": "stop_line_near", "line": [[0.15, 0.49], [0.53, 0.42]], "controlled_by": "traffic_light_gantry_mid"}
-  ],
-  "traffic_lights": [
-    {"id": "traffic_light_pole_left", "roi": [0.12, 0.43, 0.16, 0.49], "lanes": ["near_carriageway"]},
-    {"id": "traffic_light_gantry_mid", "roi": [0.36, 0.22, 0.40, 0.30], "lanes": ["near_carriageway"]},
-    {"id": "traffic_light_median", "roi": [0.60, 0.33, 0.64, 0.40], "lanes": ["near_carriageway_right"]}
-  ],
-  "no_u_turn_zones": [
-    {"id": "median_no_uturn", "polygon": [[0.58, 0.35], [0.66, 0.32], [0.68, 0.40], [0.60, 0.43]]}
-  ],
-  "intersection": {"polygon": [[0.20, 0.55], [0.72, 0.46], [1.0, 0.60], [1.0, 1.0], [0.0, 1.0], [0.0, 0.63]], "note": "NOT re-verified in v2"},
-  "road_mask": {"polygon": [[0.03, 0.60], [0.01, 0.35], [0.04, 0.20], [0.33, 0.04], [0.60, 0.02], [0.68, 0.08], [0.66, 0.20], [0.78, 0.24], [0.90, 0.30], [1.0, 0.40], [1.0, 1.0], [0.0, 1.0]], "note": "NOT re-verified in v2"},
-  "homography": {
-    "note": "UNVERIFIED - confirm real lane width (typically 3.0-3.5m in UZ) via satellite measurement before trusting speed/TTC in metres. image_points now match corrected crosswalk_main.",
-    "image_points": [[0.18, 0.58], [0.20, 0.52], [0.62, 0.45], [0.61, 0.50]],
-    "world_points_m": [[0, 0], [0, 4], [10.5, 4], [10.5, 0]]
+ "reference_video": "C3896.MP4",
+ "reference_frame_size": [
+  3840,
+  2160
+ ],
+ "note": "v2 (2026-09-26): measured on C3896 @ 5 s with a 0.01 grid on the 4K frame (see docs/scene_debug/manual_*.jpg). Normalized [0,1] coords of the reference frame; other videos are mapped through camera_alignment. lanes[] are hand-drawn (the 2 dominant flows); build_scene.py keeps its auto clusters under auto_movements.",
+ "crosswalks": [
+  {
+   "id": "crosswalk_main_left",
+   "polygon": [
+    [
+     0.179,
+     0.561
+    ],
+    [
+     0.6,
+     0.48
+    ],
+    [
+     0.6,
+     0.516
+    ],
+    [
+     0.2,
+     0.598
+    ]
+   ]
   },
-  "static_ignore": [],
-  "lanes": []
+  {
+   "id": "crosswalk_main_right",
+   "polygon": [
+    [
+     0.615,
+     0.472
+    ],
+    [
+     0.945,
+     0.4447
+    ],
+    [
+     0.945,
+     0.472
+    ],
+    [
+     0.615,
+     0.501
+    ]
+   ]
+  },
+  {
+   "id": "crosswalk_diagonal",
+   "polygon": [
+    [
+     0.096,
+     0.706
+    ],
+    [
+     0.178,
+     0.662
+    ],
+    [
+     0.256,
+     0.733
+    ],
+    [
+     0.325,
+     0.793
+    ],
+    [
+     0.389,
+     0.837
+    ],
+    [
+     0.445,
+     0.946
+    ],
+    [
+     0.475,
+     1.0
+    ],
+    [
+     0.325,
+     1.0
+    ],
+    [
+     0.278,
+     0.877
+    ],
+    [
+     0.211,
+     0.817
+    ],
+    [
+     0.167,
+     0.768
+    ]
+   ]
+  }
+ ],
+ "stop_lines": [
+  {
+   "id": "stop_line_near",
+   "line": [
+    [
+     0.15,
+     0.487
+    ],
+    [
+     0.485,
+     0.423
+    ]
+   ],
+   "controlled_by": "traffic_light_median"
+  }
+ ],
+ "traffic_lights": [
+  {
+   "id": "traffic_light_median",
+   "roi": [
+    0.599,
+    0.334,
+    0.611,
+    0.381
+   ],
+   "kind": "vehicle",
+   "layout": "vertical",
+   "lanes": [
+    "near_approach"
+   ],
+   "note": "3-lamp vehicle head on the median island, facing the camera -> controls the near (queue) approach. Validated: clean ~33 s red / ~36 s green cycles on all 4 videos."
+  },
+  {
+   "id": "pedestrian_light_left",
+   "roi": [
+    0.133,
+    0.44,
+    0.153,
+    0.485
+   ],
+   "kind": "pedestrian",
+   "layout": "vertical",
+   "lanes": [],
+   "note": "2-lamp pedestrian head (standing-man red) at the left end of crosswalk_main_left. Not a vehicle signal."
+  }
+ ],
+ "solid_lines": [
+  {
+   "id": "lane_divider_1",
+   "line": [
+    [
+     0.257,
+     0.413
+    ],
+    [
+     0.29,
+     0.46
+    ]
+   ]
+  },
+  {
+   "id": "lane_divider_2",
+   "line": [
+    [
+     0.302,
+     0.397
+    ],
+    [
+     0.345,
+     0.45
+    ]
+   ]
+  },
+  {
+   "id": "lane_divider_3",
+   "line": [
+    [
+     0.401,
+     0.413
+    ],
+    [
+     0.419,
+     0.436
+    ]
+   ]
+  }
+ ],
+ "refuges": [
+  {
+   "id": "median_island",
+   "polygon": [
+    [
+     0.56,
+     0.455
+    ],
+    [
+     0.62,
+     0.468
+    ],
+    [
+     0.68,
+     0.505
+    ],
+    [
+     0.68,
+     0.53
+    ],
+    [
+     0.61,
+     0.532
+    ],
+    [
+     0.585,
+     0.505
+    ]
+   ]
+  },
+  {
+   "id": "island_top",
+   "polygon": [
+    [
+     0.265,
+     0.712
+    ],
+    [
+     0.325,
+     0.618
+    ],
+    [
+     0.392,
+     0.685
+    ]
+   ]
+  },
+  {
+   "id": "island_bottom_left",
+   "polygon": [
+    [
+     0.061,
+     0.859
+    ],
+    [
+     0.175,
+     0.785
+    ],
+    [
+     0.222,
+     0.845
+    ]
+   ]
+  },
+  {
+   "id": "island_bottom_right",
+   "polygon": [
+    [
+     0.353,
+     0.785
+    ],
+    [
+     0.45,
+     0.751
+    ],
+    [
+     0.497,
+     0.807
+    ],
+    [
+     0.37,
+     0.829
+    ]
+   ]
+  }
+ ],
+ "no_u_turn_zones": [
+  {
+   "id": "median_end_no_uturn",
+   "polygon": [
+    [
+     0.5,
+     0.42
+    ],
+    [
+     0.6,
+     0.44
+    ],
+    [
+     0.64,
+     0.48
+    ],
+    [
+     0.6,
+     0.52
+    ],
+    [
+     0.52,
+     0.5
+    ]
+   ],
+   "note": "UNVERIFIED legality: U-turn around the median end from the near approach into the far carriageway."
+  }
+ ],
+ "intersection": {
+  "polygon": [
+   [
+    0.2,
+    0.598
+   ],
+   [
+    0.6,
+    0.516
+   ],
+   [
+    1.0,
+    0.47
+   ],
+   [
+    1.0,
+    1.0
+   ],
+   [
+    0.475,
+    1.0
+   ],
+   [
+    0.392,
+    0.84
+   ],
+   [
+    0.265,
+    0.715
+   ],
+   [
+    0.178,
+    0.662
+   ]
+  ]
+ },
+ "road_mask": {
+  "polygon": [
+   [
+    0.04,
+    0.1
+   ],
+   [
+    0.3,
+    0.03
+   ],
+   [
+    0.47,
+    0.17
+   ],
+   [
+    0.6,
+    0.26
+   ],
+   [
+    0.7,
+    0.33
+   ],
+   [
+    0.8,
+    0.395
+   ],
+   [
+    0.87,
+    0.44
+   ],
+   [
+    1.0,
+    0.442
+   ],
+   [
+    1.0,
+    1.0
+   ],
+   [
+    0.0,
+    1.0
+   ],
+   [
+    0.0,
+    0.745
+   ],
+   [
+    0.096,
+    0.706
+   ],
+   [
+    0.178,
+    0.662
+   ],
+   [
+    0.175,
+    0.56
+   ],
+   [
+    0.14,
+    0.49
+   ],
+   [
+    0.11,
+    0.4
+   ],
+   [
+    0.08,
+    0.3
+   ]
+  ]
+ },
+ "homography": {
+  "note": "APPROXIMATE (+-25%): stop_line_near spans 4 lanes x 3.5 m = 14 m; stop line -> crosswalk_main_left top edge ~5 m (about one car length). C/D are where the two lane-edge lines (measured direction) meet the crosswalk top edge; D lands on the median-island tip, an independent sanity check.",
+  "image_points": [
+   [
+    0.15,
+    0.487
+   ],
+   [
+    0.485,
+    0.423
+   ],
+   [
+    0.569,
+    0.486
+   ],
+   [
+    0.212,
+    0.555
+   ]
+  ],
+  "world_points_m": [
+   [
+    0,
+    0
+   ],
+   [
+    14,
+    0
+   ],
+   [
+    14,
+    5
+   ],
+   [
+    0,
+    5
+   ]
+  ]
+ },
+ "static_ignore": [],
+ "lanes": [
+  {
+   "id": "near_approach",
+   "polygon": [
+    [
+     0.045,
+     0.12
+    ],
+    [
+     0.07,
+     0.105
+    ],
+    [
+     0.485,
+     0.423
+    ],
+    [
+     0.15,
+     0.487
+    ],
+    [
+     0.11,
+     0.4
+    ],
+    [
+     0.08,
+     0.3
+    ]
+   ],
+   "direction": [
+    0.75,
+    0.66
+   ],
+   "turn_allowed": [
+    "unclassified"
+   ],
+   "note": "Queue approach towards the camera, controlled by traffic_light_median. Direction = largest auto cluster (n=98)."
+  },
+  {
+   "id": "far_road",
+   "polygon": [
+    [
+     0.08,
+     0.095
+    ],
+    [
+     0.3,
+     0.03
+    ],
+    [
+     0.47,
+     0.17
+    ],
+    [
+     0.6,
+     0.26
+    ],
+    [
+     0.7,
+     0.32
+    ],
+    [
+     0.85,
+     0.405
+    ],
+    [
+     0.99,
+     0.441
+    ],
+    [
+     0.615,
+     0.472
+    ],
+    [
+     0.56,
+     0.455
+    ]
+   ],
+   "direction": [
+    -0.92,
+    -0.4
+   ],
+   "turn_allowed": [
+    "unclassified"
+   ],
+   "note": "Carriageway leaving the intersection, away from the camera. Direction = auto cluster n=44."
+  }
+ ]
 }

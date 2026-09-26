@@ -7,6 +7,7 @@ ultralytics import out of anything that doesn't need it.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 import numpy as np
@@ -35,6 +36,19 @@ class Detection:
     conf: float
 
 
+def resolve_device(device: str | None) -> str:
+    """"auto"/None -> cuda if available, else mps (Apple dev machines), else cpu."""
+    if device not in (None, "auto"):
+        return device
+    import torch
+
+    if torch.cuda.is_available():
+        return "cuda:0"
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
 class Perception:
     """Wraps one ultralytics YOLO model with persistent BoT-SORT tracking.
 
@@ -44,17 +58,21 @@ class Perception:
 
     def __init__(
         self,
-        model_path: str = "weights/yolo11m.pt",
+        model_path: str = "weights/yolo11n.pt",
         conf: float = 0.3,
         tracker: str = "botsort.yaml",
         device: str | None = None,
+        imgsz: int = 960,
     ) -> None:
+        os.environ.setdefault("YOLO_OFFLINE", "1")  # eval machine has no internet: never try to reach it
         from ultralytics import YOLO  # deferred: heavy import, only when actually detecting
 
         self.model = YOLO(model_path)
         self.conf = conf
         self.tracker = tracker
-        self.device = device
+        self.device = resolve_device(device)
+        self.half = self.device.startswith("cuda")  # T4: fp16; MPS/CPU stay fp32
+        self.imgsz = imgsz
         self._classes = list(COCO_CLASS_NAMES.keys())
 
     def track_frame(self, frame_bgr: np.ndarray) -> list[Detection]:
@@ -65,6 +83,8 @@ class Perception:
             tracker=self.tracker,
             conf=self.conf,
             device=self.device,
+            half=self.half,
+            imgsz=self.imgsz,
             verbose=False,
         )[0]
         out: list[Detection] = []

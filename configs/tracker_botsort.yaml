@@ -1,0 +1,15 @@
+# BoT-SORT for a FIXED camera: ultralytics defaults, except global motion
+# compensation is off (gmc_method: none). GMC estimates camera motion with
+# optical flow on the full frame -- pure cost at 4K when the camera never moves.
+tracker_type: botsort
+track_high_thresh: 0.25
+track_low_thresh: 0.1
+new_track_thresh: 0.25
+track_buffer: 30  # frames at the processing rate (10 fps -> 3 s of occlusion)
+match_thresh: 0.8
+fuse_score: true
+gmc_method: none
+proximity_thresh: 0.5
+appearance_thresh: 0.8
+with_reid: false
+model: auto

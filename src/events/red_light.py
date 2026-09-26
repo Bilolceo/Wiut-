@@ -18,6 +18,10 @@ from src.scene.geometry import segments_intersect
 CROSSING_EVENT_PAD_SEC = 1.0  # candidate window padding around the crossing instant
 MERGE_GAP_SEC = 1.0
 MAX_LIGHT_GAP_SEC = 1.5  # ignore a light sample farther than this from the crossing
+# The light must still be red this long after the crossing: on the samples,
+# drivers creeping over the line ~1 s before red turns green were the
+# borderline case (checked by eye on C3896 @ 327 s) -- not a clear violation.
+STILL_RED_AFTER_SEC = 1.0
 
 
 def _lane_direction_ok(motion: tuple[float, float], tl, scene) -> bool:
@@ -57,8 +61,10 @@ class RedLightRule:
                     if tl is not None and not _lane_direction_ok(motion, tl, scene):
                         continue
                     t_cross = (a.t_sec + b.t_sec) / 2.0
-                    state = nearest_in_time(light_log[sl.controlled_by], t_cross, MAX_LIGHT_GAP_SEC)
-                    if state is not None and state.state == "red":
+                    log = light_log[sl.controlled_by]
+                    state = nearest_in_time(log, t_cross, MAX_LIGHT_GAP_SEC)
+                    after = nearest_in_time(log, t_cross + STILL_RED_AFTER_SEC, MAX_LIGHT_GAP_SEC)
+                    if state is not None and state.state == "red" and after is not None and after.state == "red":
                         crossings.append((t_cross - CROSSING_EVENT_PAD_SEC, t_cross + CROSSING_EVENT_PAD_SEC))
 
             for start, end in merge_intervals(crossings, MERGE_GAP_SEC):
