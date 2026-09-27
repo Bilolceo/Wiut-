@@ -110,4 +110,6 @@ sampling by index; post-processing sorts and rounds outputs to ms.
 
 | Member | Role / what they did |
 |---|---|
-| _to fill_ | |
+| Bilol Pardabaev | Developer: CV pipeline, event rules, Part B risk model, live demo backend |
+| Shirin Axmadova | Web design: website layout and presentation |
+| Rahmim Berdibaev | Pitch: project presentation |

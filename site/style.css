@@ -277,7 +277,8 @@ tr:last-child td { border-bottom: 0; }
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 @media (max-width: 800px) { .cards { grid-template-columns: 1fr; } }
 .person { text-align: center; padding: 28px 20px; }
-.avatar { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 14px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); opacity: 0.85; }
+.avatar { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 14px; display: grid; place-items: center; font-weight: 700; font-size: 20px; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+.role { margin: 0 0 8px; color: var(--accent); font-weight: 600; font-size: 14px; }
 .link-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 @media (max-width: 800px) { .link-grid { grid-template-columns: 1fr; } }
 .link-card { display: grid; gap: 2px; padding: 16px 18px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); color: var(--ink);
