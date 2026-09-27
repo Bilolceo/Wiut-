@@ -2,7 +2,10 @@
 # torch: the default PyPI wheel is the CUDA build on Linux (T4); CI uses the CPU index.
 numpy==2.4.6
 opencv-python-headless==5.0.0.93
-opencv-python==5.0.0.93   # pulled in by ultralytics anyway; pinned to the same build as headless
+# ultralytics requires `opencv-python`, whose cv2 needs X11/GL libraries (libxcb, libGL) that a
+# bare server lacks, and it overwrites the headless build. This empty placeholder satisfies the
+# requirement so that cv2 always comes from opencv-python-headless above.
+./third_party/opencv_python-5.0.0.93-py3-none-any.whl
 PyYAML==6.0.3
 torch==2.14.0
 torchvision==0.29.0

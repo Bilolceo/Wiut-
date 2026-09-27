@@ -7,6 +7,7 @@ ARG WITH_VLM=0
 RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY requirements.txt ./
+COPY third_party/ third_party/
 COPY demo/requirements.txt demo/
 RUN pip install --no-cache-dir -r demo/requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
 COPY . .
