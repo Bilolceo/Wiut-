@@ -90,7 +90,7 @@ function lineChart(container, series, { yMax, yLabel, xMax, refY, height = 240, 
 }
 
 // ---------------------------------------------------------------- event timeline
-function timeline(container, events, classes, duration) {
+function timeline(container, events, classes, duration, onSeek) {
   container.innerHTML = "";
   const rows = classes;
   const rowH = 26, W = 960, m = { l: 140, r: 16, t: 6, b: 26 };
@@ -118,6 +118,10 @@ function timeline(container, events, classes, duration) {
       const html = `<b>${label(cls)}</b><div>${fmtTime(s)} – ${fmtTime(e)} (${(e - s).toFixed(1)} s)</div>`;
       r.addEventListener("pointermove", (evt) => showTip(evt, html));
       r.addEventListener("pointerleave", hideTip);
+      if (onSeek) {
+        r.addEventListener("click", () => onSeek(s));
+        r.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); onSeek(s); } });
+      }
       r.addEventListener("focus", () => { const b = r.getBoundingClientRect(); showTip({ clientX: b.right, clientY: b.top }, html); });
       r.addEventListener("blur", hideTip);
     }
@@ -125,7 +129,27 @@ function timeline(container, events, classes, duration) {
 }
 
 // ------------------------------------------------------------------------- page
-function renderVideo(data, v, enabled) {
+function seekTo(player, t) {
+  if (!player.src) return;
+  player.currentTime = Math.max(0, t - 1);
+  player.play().catch(() => {});
+  player.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function gallery(container, items, caption) {
+  container.innerHTML = items.length
+    ? items.map((it) => `<figure><a href="${it.img}" target="_blank" rel="noopener"><img src="${it.img}" alt="${caption(it).replace(/<[^>]+>/g, "")}" loading="lazy"></a><figcaption>${caption(it)}</figcaption></figure>`).join("")
+    : `<p class="muted">None in this video.</p>`;
+}
+
+function renderVideo(data, v, enabled, renders) {
+  const player = document.getElementById("sample-player");
+  const r = (renders && renders.videos[v.id]) || { examples: [], failures: [] };
+  if (r.render) { player.src = r.render; player.hidden = false; } else { player.removeAttribute("src"); player.hidden = true; }
+  gallery(document.getElementById("examples"), r.examples,
+    (e) => `<span class="tag">${label(e.label)}</span>${fmtTime(e.start)} – ${fmtTime(e.end)}`);
+  gallery(document.getElementById("failures"), r.failures,
+    (f) => `<span class="tag">${f.kind}</span><b>${f.title}</b><br>${label(f.label)} at ${fmtTime(f.t)}. ${f.note}`);
   const counts = v.events.length;
   tiles(document.getElementById("video-tiles"), [
     [fmtTime(v.duration_sec), "duration"],
@@ -133,7 +157,7 @@ function renderVideo(data, v, enabled) {
     [v.runtime.total_sec ? `${(v.runtime.total_sec / v.duration_sec).toFixed(2)}×` : "–", "runtime A+B / duration (limit 3×)"],
     [v.risk_summary.mean !== null ? v.risk_summary.mean.toFixed(3) : "–", "mean risk"],
   ]);
-  timeline(document.getElementById("timeline-chart"), v.events, enabled, v.duration_sec);
+  timeline(document.getElementById("timeline-chart"), v.events, enabled, v.duration_sec, (t) => seekTo(player, t));
   lineChart(document.getElementById("risk-chart"), [{ name: "risk", color: "--risk", points: v.risk }],
     { yMax: 1, yLabel: "Accident risk over time", xMax: v.duration_sec, refY: 0.5, height: 200 });
   table(document.getElementById("events-table"), ["Start", "End", "Class"],
@@ -142,6 +166,7 @@ function renderVideo(data, v, enabled) {
 
 async function main() {
   const data = await (await fetch("data/site.json")).json();
+  const renders = await fetch("data/renders.json").then((r) => (r.ok ? r.json() : null)).catch(() => null);
   const vids = data.videos;
   const enabled = Object.entries(data.classes).filter(([, on]) => on).map(([k]) => k);
   const totalMin = vids.reduce((a, v) => a + v.duration_sec, 0) / 60;
@@ -174,14 +199,68 @@ async function main() {
     b.addEventListener("click", () => {
       tabs.querySelectorAll("button").forEach((x) => x.setAttribute("aria-selected", "false"));
       b.setAttribute("aria-selected", "true");
-      renderVideo(data, v, enabled);
+      renderVideo(data, v, enabled, renders);
     });
     tabs.appendChild(b);
   });
-  renderVideo(data, vids[0], enabled);
+  renderVideo(data, vids[0], enabled, renders);
+  window.__enabledClasses = enabled;
 }
 
-document.getElementById("demo-form").addEventListener("submit", (e) => e.preventDefault());
+// ------------------------------------------------------------------ live demo
+const API = (document.querySelector('meta[name="demo-api"]')?.content || "").replace(/\/$/, "");
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function showDemoResult(res) {
+  const player = document.getElementById("demo-player");
+  player.src = API + res.render;
+  tiles(document.getElementById("demo-tiles"), [
+    [fmtTime(res.duration_sec), "duration"], [res.events.length, "events"],
+    [`${(res.timing_sec.part_a + res.timing_sec.part_b).toFixed(1)} s`, "processing (A + B)"], [res.vlm ? "on" : "off", "VLM verifier"],
+  ]);
+  const classes = window.__enabledClasses || [...new Set(res.events.map((e) => e[2]))];
+  timeline(document.getElementById("demo-timeline"), res.events, classes, res.duration_sec, (t) => seekTo(player, t));
+  lineChart(document.getElementById("demo-risk"), [{ name: "risk", color: "--risk", points: res.risk }],
+    { yMax: 1, yLabel: "Accident risk over time", xMax: res.duration_sec, refY: 0.5, height: 200 });
+  gallery(document.getElementById("demo-examples"), res.examples.map((e) => ({ ...e, img: API + e.img })),
+    (e) => `<span class="tag">${label(e.label)}</span>${fmtTime(e.start)} – ${fmtTime(e.end)}`);
+  table(document.getElementById("demo-events"), ["Start", "End", "Class"], res.events.map(([s, e, c]) => [s.toFixed(2), e.toFixed(2), label(c)]), [0, 1]);
+  document.getElementById("demo-result").hidden = false;
+}
+
+document.getElementById("demo-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const file = document.getElementById("demo-file").files[0];
+  const status = document.getElementById("demo-status"), bar = document.getElementById("demo-bar"), stage = document.getElementById("demo-stage");
+  const button = document.getElementById("demo-submit");
+  if (!file) return;
+  if (file.size > 600 * 1024 * 1024) { status.textContent = "File is larger than 600 MB."; return; }
+  const body = new FormData();
+  body.append("video", file);
+  body.append("full", document.getElementById("demo-full").checked ? "true" : "false");
+  button.disabled = true;
+  document.getElementById("demo-result").hidden = true;
+  document.getElementById("demo-progress").hidden = false;
+  stage.textContent = "uploading…"; bar.removeAttribute("value");
+  try {
+    const resp = await fetch(`${API}/api/jobs`, { method: "POST", body });
+    const created = await resp.json();
+    if (!resp.ok) throw new Error(created.detail || resp.statusText);
+    for (;;) {
+      await sleep(1500);
+      const job = await (await fetch(`${API}/api/jobs/${created.id}`)).json();
+      bar.value = job.progress;
+      stage.textContent = job.status === "queued" ? `waiting in queue (position ${job.queue_position + 1})` : `${job.stage} · ${Math.round(job.progress * 100)}%`;
+      if (job.status === "done") { status.textContent = "Done."; showDemoResult(job.result); break; }
+      if (job.status === "error") throw new Error(job.error);
+    }
+  } catch (err) {
+    status.textContent = `Demo failed: ${err.message}. If this page is served without the demo server, the backend is not reachable.`;
+  } finally {
+    button.disabled = false;
+    document.getElementById("demo-progress").hidden = true;
+  }
+});
 main().catch((err) => {
   document.getElementById("hero-tiles").textContent = `Could not load data/site.json (${err.message}). Serve the folder over HTTP: python -m http.server -d site`;
 });

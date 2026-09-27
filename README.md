@@ -15,7 +15,7 @@ pip install -r requirements.txt            # pinned ==; Linux wheel of torch inc
 ./weights/download.sh                      # yolo11n.pt (sha256, also committed) + Qwen3-VL-2B (pinned revision); total 4.27 GB <= 5 GB
 python run_submission.py --videos data/samples --out predictions.json
 python evaluate.py --pred predictions.json --validate-only
-pytest -q                                  # 85 unit tests, no video / GPU / VLM weights needed
+pytest -q                                  # 91 unit tests, no video / GPU / VLM weights needed
 ```
 
 The eval machine needs no internet: weights are local and `YOLO_OFFLINE=1` is set before ultralytics loads.
@@ -77,6 +77,22 @@ python scripts/build_site_data.py --predictions predictions_samples.json --video
 | transformers | github.com/huggingface/transformers | Apache-2.0 |
 
 No hosted API is used at inference. No training was done yet; all models are used as released.
+
+## Live demo and annotated renders
+
+```bash
+pip install -r demo/requirements.txt
+uvicorn demo.server:app --port 7860          # API + website on http://localhost:7860
+python scripts/render_samples.py --videos data/samples/*.MP4   # site/assets/renders/*.mp4 + example/failure stills
+```
+
+`demo/server.py` (FastAPI) accepts an MP4 up to 2 minutes / 600 MB, queues it, and runs the submission code on
+CPU: Part A (VLM verifier off unless the visitor ticks "full analysis"), the causal Part B estimator, then an
+annotated playback rendered by `src/viz/render.py` (the same renderer as the sample videos). Measured on an
+Apple M4 forced to CPU (`WIUT_DEVICE=cpu`): a 40 s 1080p clip takes 61 s end to end. `demo/Dockerfile` targets a
+CPU host such as a Hugging Face Space (Docker SDK, port 7860).
+
+Failure cases shown on the site are curated in `docs/failure_cases.json`; each was checked on the frame.
 
 ## Website
 

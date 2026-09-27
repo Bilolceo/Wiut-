@@ -1,0 +1,140 @@
+{
+ "videos": {
+  "C3896": {
+   "render": "assets/renders/C3896.mp4",
+   "examples": [
+    {
+     "label": "failure_to_yield",
+     "start": 287.788,
+     "end": 289.088,
+     "img": "assets/examples/C3896_failure_to_yield.jpg"
+    },
+    {
+     "label": "jaywalking",
+     "start": 110.51,
+     "end": 116.617,
+     "img": "assets/examples/C3896_jaywalking.jpg"
+    },
+    {
+     "label": "red_light",
+     "start": 77.829,
+     "end": 79.829,
+     "img": "assets/examples/C3896_red_light.jpg"
+    }
+   ],
+   "failures": [
+    {
+     "video": "C3896",
+     "t": 19.5,
+     "label": "failure_to_yield",
+     "kind": "false positive",
+     "title": "A rider counted as a pedestrian",
+     "note": "The 'pedestrian' on the far-right crossing is a person on a small scooter that YOLO did not detect, so the rider filter (person box overlapping a bicycle/motorcycle box) could not remove it.",
+     "img": "assets/examples/C3896_failure_failure_to_yield_19.jpg"
+    },
+    {
+     "video": "C3896",
+     "t": 327.0,
+     "label": "red_light",
+     "kind": "missed (by design)",
+     "title": "Creeping over the line just before green",
+     "note": "The car crosses the stop line about 1 s before the signal turns green. The rule requires the light to still be red 1 s after the crossing, which removes these borderline cases; annotators may count it as red-light running.",
+     "img": "assets/examples/C3896_failure_red_light_327.jpg"
+    }
+   ]
+  },
+  "C3897": {
+   "render": "assets/renders/C3897.mp4",
+   "examples": [
+    {
+     "label": "failure_to_yield",
+     "start": 298.098,
+     "end": 299.499,
+     "img": "assets/examples/C3897_failure_to_yield.jpg"
+    },
+    {
+     "label": "jaywalking",
+     "start": 2.202,
+     "end": 6.106,
+     "img": "assets/examples/C3897_jaywalking.jpg"
+    }
+   ],
+   "failures": [
+    {
+     "video": "C3897",
+     "t": 84.0,
+     "label": "jaywalking",
+     "kind": "ambiguous",
+     "title": "Detouring around cars that block the crossing",
+     "note": "Cars have stopped on the far-road zebra, so a group of pedestrians walks around them 2-4 m beside the markings. The rule counts this as jaywalking; annotators may not.",
+     "img": "assets/examples/C3897_failure_jaywalking_84.jpg"
+    },
+    {
+     "video": "C3897",
+     "t": 84.0,
+     "label": "stop_line",
+     "kind": "missed",
+     "title": "Vehicles blocking the far-road crossing are not detected",
+     "note": "Only the queue approach has a stop line and a visible signal head. For the far-road approach the signal faces away from the camera, so vehicles stopped on that zebra (the same frame) are not flagged by any rule.",
+     "img": "assets/examples/C3897_failure_stop_line_84.jpg"
+    }
+   ]
+  },
+  "C3902": {
+   "render": "assets/renders/C3902.mp4",
+   "examples": [
+    {
+     "label": "failure_to_yield",
+     "start": 52.953,
+     "end": 54.554,
+     "img": "assets/examples/C3902_failure_to_yield.jpg"
+    },
+    {
+     "label": "jaywalking",
+     "start": 26.527,
+     "end": 29.329,
+     "img": "assets/examples/C3902_jaywalking.jpg"
+    }
+   ],
+   "failures": [
+    {
+     "video": "C3902",
+     "t": 98.0,
+     "label": "jaywalking",
+     "kind": "boundary risk",
+     "title": "Six pedestrians merged into one 39 s segment",
+     "note": "Each person really crosses the intersection diagonally, but same-class segments must not overlap, so back-to-back crossings merge into one long segment (79-118 s). If the annotators split them differently, temporal IoU can fall below 0.5.",
+     "img": "assets/examples/C3902_failure_jaywalking_98.jpg"
+    }
+   ]
+  },
+  "C3905": {
+   "render": "assets/renders/C3905.mp4",
+   "examples": [
+    {
+     "label": "failure_to_yield",
+     "start": 27.128,
+     "end": 28.428,
+     "img": "assets/examples/C3905_failure_to_yield.jpg"
+    },
+    {
+     "label": "jaywalking",
+     "start": 13.313,
+     "end": 15.816,
+     "img": "assets/examples/C3905_jaywalking.jpg"
+    }
+   ],
+   "failures": [
+    {
+     "video": "C3905",
+     "t": 106.0,
+     "label": "jaywalking",
+     "kind": "missed (by design)",
+     "title": "Short-cut from the main zebra to the island",
+     "note": "Pedestrians leave the main zebra and cut across the corner to the refuge island. The ~1 m tolerance around zebras, added to stop kerb-side false alarms, also hides this short-cut.",
+     "img": "assets/examples/C3905_failure_jaywalking_106.jpg"
+    }
+   ]
+  }
+ }
+}

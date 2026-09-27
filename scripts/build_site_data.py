@@ -22,24 +22,11 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.config import load_yaml  # noqa: E402
 from src.scene.align import estimate_alignment  # noqa: E402
+from src.viz.series import downsample_max  # noqa: E402
 
 SITE = Path("site")
 RISK_HZ = 2.0  # risk curves are downsampled to this rate, keeping each bucket's max (alarms stay visible)
 BRIGHTNESS_EVERY_SEC = 5.0
-
-
-def downsample_max(curve: list[list[float]], hz: float) -> list[list[float]]:
-    out, bucket, t0 = [], [], None
-    for t, v in curve:
-        if t0 is None:
-            t0 = t
-        if t - t0 >= 1.0 / hz and bucket:
-            out.append([round(t0, 2), round(max(bucket), 3)])
-            bucket, t0 = [], t
-        bucket.append(v)
-    if bucket:
-        out.append([round(t0, 2), round(max(bucket), 3)])
-    return out
 
 
 def video_stats(path: str) -> dict:

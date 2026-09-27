@@ -47,6 +47,7 @@ Scene geometry: configs/scene_manual.json (hand-drawn on C3896 @ 5 s) → config
 solution.py (thin wrapper → src/), run_submission.py, evaluate.py, requirements.txt (pinned ==), Dockerfile,
 weights/download.sh, configs/, src/{io,scene,perception,tracks,events,verify,post,risk,viz}/, scripts/, tools/scene_editor/,
 labels/dev_gt.json, tests/, notebooks/ (EDA only), predictions_samples.json, README.md
+demo/ (FastAPI live demo + Dockerfile), site/ (static website, data from scripts/build_site_data.py + scripts/render_samples.py)
 
 ## Conventions
 - Python 3.10+, type hints, docstrings, ruff + black. Small modules, no dead code.

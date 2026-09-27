@@ -141,14 +141,23 @@ def run_rules(track_store, scene: Scene, light_log: dict, enabled: set[str]) -> 
     return candidates
 
 
-def detect_events_impl(video_path: str, perception=None) -> tuple[list[list], dict]:
-    """detect_events plus a debug report (per-stage timings, candidate counts).
+def _merge(base: dict, override: dict) -> dict:
+    out = dict(base)
+    for k, v in override.items():
+        out[k] = _merge(base[k], v) if isinstance(v, dict) and isinstance(base.get(k), dict) else v
+    return out
+
+
+def detect_events_impl(video_path: str, perception=None, overrides: dict | None = None, progress=None) -> tuple[list[list], dict]:
+    """detect_events plus a debug report (per-stage timings, candidates, tracks).
 
     `perception` can be injected (tests / reuse); by default a fresh model +
     tracker is built for every video (tracker state must not leak across videos).
+    `overrides` patch configs/runtime.yaml (e.g. the demo turns the VLM off on
+    CPU); `progress(fraction)` reports tracking progress.
     """
     t0 = time.perf_counter()
-    cfg = load_yaml("runtime.yaml")
+    cfg = _merge(load_yaml("runtime.yaml"), overrides or {})
     thresholds = load_yaml("thresholds.yaml")
     _seed(cfg.get("seed", 1234))
     scene = get_scene()
@@ -166,6 +175,7 @@ def detect_events_impl(video_path: str, perception=None) -> tuple[list[list], di
         deadline=deadline,
         aligner=make_aligner(tuple(int(v) for v in scene.reference_size((meta.width, meta.height)))),
         realign_every_sec=cfg.get("realign_every_sec", 10.0),
+        progress=progress,
     )
     t_tracks = time.perf_counter()
 

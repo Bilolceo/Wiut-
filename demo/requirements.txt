@@ -1,0 +1,6 @@
+# Live demo server = the submission's dependencies + a small web stack.
+-r ../requirements.txt
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+imageio-ffmpeg==0.6.0   # H.264 for the annotated playback

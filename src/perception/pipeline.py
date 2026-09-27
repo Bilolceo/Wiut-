@@ -55,6 +55,7 @@ def build_track_store(
     deadline: float | None = None,
     aligner=None,
     realign_every_sec: float = 10.0,
+    progress=None,
 ) -> tuple[TrackStore, dict[str, list[tuple[float, LightState]]], VideoMeta]:
     """Run `perception` over sampled frames of `video_path`, aligning every
     detection into the scene's reference-frame coordinate space, and
@@ -75,6 +76,8 @@ def build_track_store(
     frame and every `realign_every_sec`, because the mount also drifts slowly
     within a clip (~15 px at 4K over 10 s on C3896). Without it, the static
     per-video alignment from scene.json is used.
+
+    `progress(fraction)` is called about once per second of video (demo UI).
     """
     video_path = Path(video_path)
     meta = read_meta(video_path)
@@ -99,11 +102,15 @@ def build_track_store(
     video_local_rois = local_rois(H_inv)
     alignments: list[tuple[float, list]] = []
     next_align_t = 0.0
+    last_progress_sec = -1
 
     for frame in sample_frames(video_path, target_fps=target_fps):
         if deadline is not None and time.perf_counter() > deadline:
             store.extras["truncated_at_sec"] = frame.t_sec
             break
+        if progress is not None and int(frame.t_sec) != last_progress_sec:
+            last_progress_sec = int(frame.t_sec)
+            progress(min(1.0, frame.t_sec / max(meta.duration_sec, 1e-6)))
         if aligner is not None and frame.t_sec >= next_align_t:
             next_align_t = frame.t_sec + realign_every_sec
             H_new = aligner(frame.bgr)

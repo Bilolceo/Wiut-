@@ -37,7 +37,12 @@ class Detection:
 
 
 def resolve_device(device: str | None) -> str:
-    """"auto"/None -> cuda if available, else mps (Apple dev machines), else cpu."""
+    """"auto"/None -> cuda if available, else mps (Apple dev machines), else cpu.
+
+    The WIUT_DEVICE environment variable overrides it (e.g. WIUT_DEVICE=cpu to
+    measure the CPU-only demo server on a machine that has a GPU).
+    """
+    device = os.environ.get("WIUT_DEVICE") or device
     if device not in (None, "auto"):
         return device
     import torch

@@ -1,0 +1,7 @@
+.venv
+data
+.git
+weights/qwen3-vl-2b-instruct
+docs/scene_debug
+docs/frames
+**/__pycache__

@@ -6,6 +6,8 @@
   <title>Traffic Event Detection</title>
   <meta name="description" content="WIUT Hackathon 2026, CV track: traffic event detection and causal accident anticipation from a fixed 4K road camera.">
   <link rel="stylesheet" href="style.css">
+  <!-- Demo API base URL; empty = same origin (the demo server also serves this page). -->
+  <meta name="demo-api" content="">
 </head>
 <body>
   <header class="top">
@@ -105,6 +107,10 @@
       <div id="video-panel">
         <div class="tiles small" id="video-tiles"></div>
         <figure class="chart-card">
+          <figcaption><h3>Annotated playback</h3><p class="muted">Rendered by <code>scripts/render_samples.py</code> from the pipeline's own tracks: vehicle in an event = red box, pedestrian in an event = yellow box, grey = other road users. Click a segment on the timeline below to jump there.</p></figcaption>
+          <video id="sample-player" controls preload="metadata" playsinline></video>
+        </figure>
+        <figure class="chart-card">
           <figcaption><h3>Event timeline</h3><p class="muted">One row per enabled class; hover a segment for its time span.</p></figcaption>
           <div class="chart" id="timeline-chart"></div>
         </figure>
@@ -113,6 +119,10 @@
           <div class="chart" id="risk-chart"></div>
         </figure>
         <details class="table-view"><summary>Events table</summary><div id="events-table"></div></details>
+        <h3 class="sub-h">One example per detected class</h3>
+        <div class="gallery" id="examples"></div>
+        <h3 class="sub-h">Honest failure cases</h3>
+        <div class="gallery" id="failures"></div>
       </div>
     </section>
 
@@ -120,11 +130,21 @@
     <section id="demo">
       <h2>Live demo</h2>
       <form class="card demo" id="demo-form">
-        <label for="demo-file">Upload a short clip from the same camera (MP4, ≤ 60 s)</label>
-        <input id="demo-file" name="video" type="file" accept="video/mp4">
-        <button type="submit" disabled>Run detection</button>
-        <p class="muted" id="demo-status">The inference backend is not connected yet. This form will post the clip to it and draw the returned events and risk curve with the same charts as above.</p>
+        <label for="demo-file">Upload a clip from this camera: MP4, up to 2 minutes and 600 MB (any resolution).</label>
+        <input id="demo-file" name="video" type="file" accept="video/mp4,.mp4,.MP4" required>
+        <label class="check"><input type="checkbox" id="demo-full" name="full"> Full analysis: also run the Qwen3-VL verifier for accident / near-miss / obstacle (much slower on the CPU demo server)</label>
+        <button type="submit" id="demo-submit">Run detection</button>
+        <div id="demo-progress" hidden><progress id="demo-bar" max="1" value="0"></progress> <span id="demo-stage" class="muted"></span></div>
+        <p class="muted" id="demo-status">Runs the same code as the submission on CPU: YOLO11n + tracking + the event rules, then the causal risk estimator. A 2-minute 4K clip takes a few minutes.</p>
       </form>
+      <div id="demo-result" hidden>
+        <div class="tiles small" id="demo-tiles"></div>
+        <figure class="chart-card"><figcaption><h3>Annotated playback</h3></figcaption><video id="demo-player" controls playsinline></video></figure>
+        <figure class="chart-card"><figcaption><h3>Event timeline</h3><p class="muted">Click a segment to jump the video there.</p></figcaption><div class="chart" id="demo-timeline"></div></figure>
+        <figure class="chart-card"><figcaption><h3>Accident risk</h3></figcaption><div class="chart" id="demo-risk"></div></figure>
+        <div class="gallery" id="demo-examples"></div>
+        <details class="table-view"><summary>Events table</summary><div id="demo-events"></div></details>
+      </div>
     </section>
 
     <!-- 6. Report -->
@@ -163,6 +183,7 @@
         <li><a href="https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt">Detector weights: YOLO11n (5.6 MB, AGPL-3.0)</a></li>
         <li><a href="https://github.com/Bilolceo/Wiut-/blob/main/predictions_samples.json">predictions_samples.json</a></li>
         <li><a href="https://github.com/Bilolceo/Wiut-/blob/main/docs/PLAN.md">Design document (PLAN.md)</a></li>
+        <li><a href="https://huggingface.co/Qwen/Qwen3-VL-2B-Instruct">Verifier weights: Qwen3-VL-2B-Instruct (4.26 GB, Apache-2.0)</a></li>
       </ul>
     </section>
   </main>
