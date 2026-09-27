@@ -80,6 +80,8 @@ No hosted API is used at inference. No training was done yet; all models are use
 
 ## Live demo and annotated renders
 
+Live: **https://wiut-production.up.railway.app** (website + demo API, CPU).
+
 ```bash
 pip install -r demo/requirements.txt
 uvicorn demo.server:app --port 7860          # API + website on http://localhost:7860

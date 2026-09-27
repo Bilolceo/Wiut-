@@ -13,7 +13,7 @@ Sep 26, 2026 · @Bilol Pardabaev
 - Part B: TTC/DRAC → sigmoid (ttc_half) → 0.5 s barqarorlik → EMA; butun yo'l (≤ 60 m). Sample'larda risk o'rtacha ≈ 0.06–0.08, 0.5 dan yuqori 0.1–1.6 % kadr.
 - Harness (Apple M4, MPS): 57 event, VALID; jami 1.59–1.70× (Part A ≈ 1.1× shundan VLM ≈ 0.3×, Part B ≈ 0.5×). Limit 3×, maqsad 1.5× dan biroz yuqori.
 - Sayt: `site/` (statik, 7 bo'lim), GitHub Pages workflow. Har bir sample uchun to'liq izohlangan MP4 (timeline bosilsa video o'sha joyga o'tadi), har klass uchun misol va har videoda ≥ 1 halol muvaffaqiyatsizlik (`docs/failure_cases.json`).
-- Live demo: `demo/server.py` (FastAPI, CPU, ≤ 2 daq, navbat + progress, VLM ixtiyoriy) + saytdagi forma; brauzer orqali uchdan-uchgacha sinalgan. Deploy qilinmagan (HF Space uchun `demo/Dockerfile` tayyor).
+- Live demo: `demo/server.py` (FastAPI, CPU, ≤ 2 daq, navbat + progress, VLM ixtiyoriy) + saytdagi forma; brauzer orqali uchdan-uchgacha sinalgan. Railway'da ishlayapti: https://wiut-production.up.railway.app (20 s klip ≈ 67 s; trial 30 kun / $5 — judging davrida onlayn turishi kerak).
 
 **Ochiq xavflar:**
 - **T4'da tekshirilmagan**: torch+CUDA fp16, Qwen3-VL fp16 (T4'da bf16 yo'q) va haqiqiy runtime. Birinchi navbatdagi ish.

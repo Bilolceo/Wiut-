@@ -6,8 +6,9 @@
   <title>Traffic Event Detection</title>
   <meta name="description" content="WIUT Hackathon 2026, CV track: traffic event detection and causal accident anticipation from a fixed 4K road camera.">
   <link rel="stylesheet" href="style.css">
-  <!-- Demo API base URL; empty = same origin (the demo server also serves this page). -->
-  <meta name="demo-api" content="">
+  <!-- Demo API base URL (demo/server.py on Railway). The same server also serves this page;
+       the absolute URL keeps the demo form working on any other copy (e.g. GitHub Pages). -->
+  <meta name="demo-api" content="https://wiut-production.up.railway.app">
 </head>
 <body>
   <header class="top">
@@ -179,6 +180,7 @@
     <section id="links">
       <h2>Links</h2>
       <ul class="link-list">
+        <li><a href="https://wiut-production.up.railway.app">Live site and demo (Railway)</a></li>
         <li><a href="https://github.com/Bilolceo/Wiut-">Source code (GitHub)</a></li>
         <li><a href="https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt">Detector weights: YOLO11n (5.6 MB, AGPL-3.0)</a></li>
         <li><a href="https://github.com/Bilolceo/Wiut-/blob/main/predictions_samples.json">predictions_samples.json</a></li>
