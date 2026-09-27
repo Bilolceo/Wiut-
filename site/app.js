@@ -92,6 +92,10 @@ function drawLine(container, series, { yMax, yLabel, xMax, refY, height = 220, f
   for (const s of series) {
     if (!s.points.length) continue;
     const d = s.points.map(([px, py], i) => `${i ? "L" : "M"}${x(px).toFixed(1)},${y(py).toFixed(1)}`).join("");
+    if (!multi) {  // soft area under a single series
+      const last = s.points[s.points.length - 1], first = s.points[0];
+      el("path", { d: `${d}L${x(last[0]).toFixed(1)},${y(0)}L${x(first[0]).toFixed(1)},${y(0)}Z`, class: "area", fill: `var(${s.color})` }, svg);
+    }
     el("path", { d, class: "line", stroke: `var(${s.color})` }, svg);
   }
   if (multi && W >= 500) {  // direct labels at line ends (nudged apart); on phones the legend alone carries identity
@@ -173,10 +177,26 @@ function gallery(container, items, caption, empty = "None in this video.") {
   container.innerHTML = items.length
     ? items.map((it) => {
       const { html, text } = caption(it);
-      return `<figure><a href="${esc(it.img)}" target="_blank" rel="noopener"><img src="${esc(it.img)}" alt="${esc(text)}" loading="lazy" width="1280" height="720"></a><figcaption>${html}</figcaption></figure>`;
+      return `<figure><button type="button" class="zoom" data-src="${esc(it.img)}" data-cap="${esc(text)}" aria-label="Enlarge: ${esc(text)}"><img src="${esc(it.img)}" alt="${esc(text)}" loading="lazy" width="1280" height="720"></button><figcaption>${html}</figcaption></figure>`;
     }).join("")
-    : `<p class="muted">${esc(empty)}</p>`;
+    : `<p class="empty-note">${esc(empty)}</p>`;
 }
+
+// ------------------------------------------------------------------ lightbox
+const lightbox = document.getElementById("lightbox");
+function openLightbox(src, cap) {
+  document.getElementById("lightbox-img").src = src;
+  document.getElementById("lightbox-img").alt = cap;
+  document.getElementById("lightbox-cap").textContent = cap;
+  if (lightbox.showModal) lightbox.showModal(); else window.open(src, "_blank", "noopener");
+}
+document.addEventListener("click", (e) => {
+  const z = e.target.closest("button.zoom");
+  if (z) return openLightbox(z.dataset.src, z.dataset.cap);
+  const img = e.target.closest("img.zoomable");
+  if (img) return openLightbox(img.currentSrc || img.src, img.alt);
+  if (e.target === lightbox || e.target.closest(".lb-close")) lightbox.close();
+});
 
 const exampleCaption = (e) => ({
   html: `<span class="tag">${esc(label(e.label))}</span>${fmtTime(e.start)} – ${fmtTime(e.end)}`,
@@ -196,13 +216,13 @@ function renderVideo(v, enabled, renders) {
   }
   gallery(document.getElementById("examples"), r.examples, exampleCaption);
   gallery(document.getElementById("failures"), r.failures, (f) => ({
-    html: `<span class="tag">${esc(f.kind)}</span><b>${esc(f.title)}</b><br>${esc(label(f.label))} at ${fmtTime(f.t)}. ${esc(f.note)}`,
+    html: `<span class="tag fail">${esc(f.kind)}</span><span class="tag">${esc(label(f.label))} · ${fmtTime(f.t)}</span><br><b>${esc(f.title)}</b><br><span class="muted">${esc(f.note)}</span>`,
     text: `${f.title}: ${label(f.label)} at ${fmtTime(f.t)}`,
   }));
   tiles(document.getElementById("video-tiles"), [
     [fmtTime(v.duration_sec), "duration"],
     [v.events.length, "events"],
-    [v.runtime.total_sec ? `${(v.runtime.total_sec / v.duration_sec).toFixed(2)}×` : "–", "runtime A+B / duration (limit 3×)"],
+    [v.runtime.total_sec ? `${(v.runtime.total_sec / v.duration_sec).toFixed(2)}×` : "–", "processing time vs length"],
     [v.risk_summary.mean !== null ? v.risk_summary.mean.toFixed(3) : "–", "mean risk"],
   ]);
   timeline(document.getElementById("timeline-chart"), v.events, enabled, v.duration_sec, (t) => seekTo(player, t));
@@ -222,6 +242,8 @@ async function main() {
   const events = vids.reduce((a, v) => a + v.events.length, 0);
   const factor = Math.max(...vids.map((v) => (v.runtime.total_sec || 0) / v.duration_sec));
 
+  document.getElementById("class-chips").innerHTML = enabled.map((c) =>
+    `<li><i style="background:var(${CLASS_SLOT[c] || "--muted"})"></i>${esc(label(c))}</li>`).join("");
   tiles(document.getElementById("hero-tiles"), [
     [`${enabled.length} / 14`, "event classes emitted"], [events, "events found on the samples"],
     [`${factor.toFixed(2)}×`, "worst runtime (limit 3×)"], [`${totalMin.toFixed(0)} min`, "of 4K sample footage"],
@@ -248,6 +270,7 @@ async function main() {
     b.setAttribute("role", "tab");
     b.textContent = v.id;
     b.setAttribute("aria-selected", String(i === 0));
+    b.title = `${fmtTime(v.duration_sec)} · ${v.events.length} events`;
     b.addEventListener("click", () => {
       tabs.querySelectorAll("button").forEach((x) => x.setAttribute("aria-selected", "false"));
       b.setAttribute("aria-selected", "true");
@@ -362,6 +385,37 @@ document.getElementById("demo-form").addEventListener("submit", async (e) => {
     lock(false);
     document.getElementById("demo-progress").hidden = true;
   }
+});
+
+// ------------------------------------------------------------------ theme, nav, dropzone
+document.getElementById("theme-btn").addEventListener("click", () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark";
+  try { localStorage.setItem("theme", root.dataset.theme); } catch { /* private mode: theme just is not remembered */ }
+});
+
+const navLinks = [...document.querySelectorAll("nav a")];
+const spy = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    navLinks.forEach((a) => a.classList.toggle("active", a.getAttribute("href") === `#${e.target.id}`));
+  }
+}, { rootMargin: "-45% 0px -50% 0px" });
+navLinks.forEach((a) => { const sec = document.querySelector(a.getAttribute("href")); if (sec) spy.observe(sec); });
+
+const drop = document.getElementById("dropzone"), fileInput = document.getElementById("demo-file");
+const showFile = () => {
+  const f = fileInput.files[0];
+  drop.classList.toggle("has-file", !!f);
+  document.getElementById("drop-title").textContent = f ? `${f.name} · ${(f.size / 2 ** 20).toFixed(1)} MB` : "Drop an MP4 here or click to choose";
+};
+fileInput.addEventListener("change", showFile);
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove("over")));
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  if (e.dataTransfer.files.length) { fileInput.files = e.dataTransfer.files; showFile(); }
 });
 
 main().catch((err) => {
