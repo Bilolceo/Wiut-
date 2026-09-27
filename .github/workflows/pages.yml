@@ -1,11 +1,9 @@
 name: Website
 
-# Deploys site/ (static HTML + data/site.json, no build step) to GitHub Pages.
-# One-time setup: repo Settings -> Pages -> Source: "GitHub Actions".
+# Optional mirror of site/ on GitHub Pages. The live site and demo are served by
+# Railway (demo/server.py), so this runs only on demand: Actions -> Website -> Run workflow.
+# It needs Pages enabled once: repo Settings -> Pages -> Source: "GitHub Actions".
 on:
-  push:
-    branches: [main]
-    paths: ["site/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:

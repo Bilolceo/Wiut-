@@ -14,7 +14,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install dependencies (CPU torch)
-        run: pip install -r requirements.txt pytest --extra-index-url https://download.pytorch.org/whl/cpu
+        run: pip install -r requirements.txt pytest httpx fastapi python-multipart --extra-index-url https://download.pytorch.org/whl/cpu
       - name: Unit tests
         run: pytest -q
       - name: Validate example predictions
@@ -28,7 +28,22 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies (CPU torch)
         run: pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
-      - name: Import solution + cv2 + ultralytics offline
+      - name: Import checks (errors are reported as annotations)
         env:
           YOLO_OFFLINE: "1"
-        run: python -c "import cv2, solution; from ultralytics import YOLO; print('cv2', cv2.__version__, 'OK')"
+        run: |
+          python - <<'PY'
+          import importlib, subprocess, sys, traceback
+          print(subprocess.run([sys.executable, "-m", "pip", "list"], capture_output=True, text=True).stdout)
+          failed = False
+          for mod in ("numpy", "cv2", "torch", "ultralytics", "transformers", "solution", "src.detect"):
+              try:
+                  m = importlib.import_module(mod)
+                  print(f"ok {mod} {getattr(m, '__version__', '')}")
+              except Exception as e:
+                  failed = True
+                  msg = f"{type(e).__name__}: {e}".replace("\n", " ")
+                  print(f"::error title=import {mod} failed::{msg}")
+                  traceback.print_exc()
+          sys.exit(1 if failed else 0)
+          PY
