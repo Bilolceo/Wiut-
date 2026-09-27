@@ -5,52 +5,105 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traffic Event Detection</title>
   <meta name="description" content="WIUT Hackathon 2026, CV track: traffic event detection and causal accident anticipation from a fixed 4K road camera.">
-  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='10' y='2' width='12' height='28' rx='4' fill='%23222'/%3E%3Ccircle cx='16' cy='9' r='4' fill='%23e34948'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23eda100'/%3E%3Ccircle cx='16' cy='23' r='4' fill='%231baf7a'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css?v=4">
   <!-- Demo API base URL (demo/server.py on Railway). The same server also serves this page;
        the absolute URL keeps the demo form working on any other copy (e.g. GitHub Pages). -->
   <meta name="demo-api" content="https://wiut-production.up.railway.app">
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
   <header class="top">
     <div class="wrap top-inner">
       <a class="brand" href="#">Traffic Event Detection</a>
       <nav aria-label="Sections">
-        <a href="#team">Team</a><a href="#approach">Approach</a><a href="#eda">EDA</a><a href="#results">Results</a>
-        <a href="#demo">Live demo</a><a href="#report">Report</a><a href="#links">Links</a>
+        <a href="#results">Results</a><a href="#demo">Demo</a><a href="#approach">Approach</a><a href="#eda">EDA</a>
+        <a href="#report">Report</a><a href="#team">Team</a><a href="#links">Links</a>
       </nav>
     </div>
   </header>
 
-  <main class="wrap">
+  <main id="main" class="wrap">
     <section class="hero">
-      <p class="kicker">WIUT Hackathon 2026 · Computer Vision track</p>
-      <h1>Traffic events from a fixed road camera</h1>
-      <p class="lede">A 4K CCTV view of a Tashkent intersection. <strong>Part A</strong> finds events as time segments
-        over 14 classes; <strong>Part B</strong> scores, frame by frame and using only the past, the probability that an
-        accident starts within the next 5 seconds.</p>
-      <div class="tiles" id="hero-tiles" aria-live="polite"></div>
+      <div class="hero-text">
+        <p class="kicker">WIUT Hackathon 2026 · Computer Vision track</p>
+        <h1>Traffic events from a fixed road camera</h1>
+        <p class="lede">We find red-light running, jaywalking, drivers not yielding to pedestrians and ten more event
+          types in 4K CCTV of a Tashkent intersection, and score accident risk frame by frame from the past alone.</p>
+        <div class="cta">
+          <a class="btn primary" href="#demo">Try the live demo</a>
+          <a class="btn" href="#results">See the results</a>
+        </div>
+      </div>
+      <figure class="hero-media">
+        <img src="assets/examples/C3896_red_light.jpg" alt="Annotated frame: a car outlined in red crossing the stop line while the signal is red" width="1280" height="720">
+        <figcaption>Red-light running caught on sample video C3896 at 1:18. Red box: the vehicle in the event.</figcaption>
+      </figure>
     </section>
+    <div class="tiles" id="hero-tiles" aria-live="polite"></div>
 
-    <!-- 1. Team -->
-    <section id="team">
-      <h2>Team</h2>
-      <div class="cards" id="team-cards">
-        <article class="card person"><div class="avatar" aria-hidden="true">?</div><h3>Member name</h3><p class="muted">Role · what they built</p><p class="links"><a href="#">GitHub</a> · <a href="#">LinkedIn</a></p></article>
-        <article class="card person"><div class="avatar" aria-hidden="true">?</div><h3>Member name</h3><p class="muted">Role · what they built</p><p class="links"><a href="#">GitHub</a> · <a href="#">LinkedIn</a></p></article>
-        <article class="card person"><div class="avatar" aria-hidden="true">?</div><h3>Member name</h3><p class="muted">Role · what they built</p><p class="links"><a href="#">GitHub</a> · <a href="#">LinkedIn</a></p></article>
+    <!-- Results -->
+    <section id="results">
+      <p class="kicker">Results</p>
+      <h2>What the system found in the sample videos</h2>
+      <p class="muted">Output of the organizers' harness (<code>run_submission.py</code>) on the four sample videos.
+        There is no ground truth yet, so there is no score here: every enabled class was checked by eye instead.</p>
+      <div class="tabs" role="tablist" aria-label="Sample video" id="video-tabs"></div>
+      <div id="video-panel">
+        <div class="tiles small" id="video-tiles"></div>
+        <figure class="card">
+          <video id="sample-player" controls preload="metadata" playsinline></video>
+          <figcaption>Annotated playback rendered from the pipeline's own tracks: <span class="key red">vehicle in an event</span> <span class="key yellow">pedestrian in an event</span> <span class="key grey">other road users</span><br>Click a segment on the timeline to jump there.</figcaption>
+        </figure>
+        <figure class="card">
+          <figcaption class="head"><h3>Event timeline</h3><span class="muted">one row per class · click to play</span></figcaption>
+          <div class="chart" id="timeline-chart"></div>
+          <details class="table-view"><summary>Events table</summary><div id="events-table"></div></details>
+        </figure>
+        <figure class="card">
+          <figcaption class="head"><h3>Accident risk (Part B)</h3><span class="muted">causal, 2 Hz max · dashed line = 0.5</span></figcaption>
+          <div class="chart" id="risk-chart"></div>
+        </figure>
+        <h3 class="sub-h">One example per detected class</h3>
+        <div class="gallery" id="examples"></div>
+        <h3 class="sub-h">Honest failure cases</h3>
+        <div class="gallery" id="failures"></div>
       </div>
     </section>
 
-    <!-- 2. Problem & approach -->
+    <!-- Live demo -->
+    <section id="demo">
+      <p class="kicker">Live demo</p>
+      <h2>Run it on your own clip</h2>
+      <form class="card demo" id="demo-form">
+        <label for="demo-file" class="file-label">Choose an MP4 from this camera: up to 2 minutes and 600 MB, any resolution.</label>
+        <input id="demo-file" name="video" type="file" accept="video/mp4,.mp4,.MP4" required>
+        <label class="check"><input type="checkbox" id="demo-full" name="full"> Full analysis: also run the Qwen3-VL verifier for accident, near-miss and obstacle (much slower on the CPU server)</label>
+        <button type="submit" class="btn primary" id="demo-submit">Run detection</button>
+        <div id="demo-progress" hidden><progress id="demo-bar" max="1" value="0"></progress> <span id="demo-stage" class="muted"></span></div>
+        <p class="muted small" id="demo-status" role="status">Runs the same code as the submission on a CPU server: detection and tracking, the event rules, then the causal risk estimator. A 20-second clip takes about a minute.</p>
+      </form>
+      <div id="demo-result" hidden>
+        <div class="tiles small" id="demo-tiles"></div>
+        <figure class="card"><video id="demo-player" controls playsinline></video><figcaption>Annotated playback of your clip.</figcaption></figure>
+        <figure class="card"><figcaption class="head"><h3>Event timeline</h3><span class="muted">click to play</span></figcaption><div class="chart" id="demo-timeline"></div></figure>
+        <figure class="card"><figcaption class="head"><h3>Accident risk</h3></figcaption><div class="chart" id="demo-risk"></div></figure>
+        <div class="gallery" id="demo-examples"></div>
+        <details class="table-view"><summary>Events table</summary><div id="demo-events"></div></details>
+      </div>
+    </section>
+
+    <!-- Approach -->
     <section id="approach">
-      <h2>Problem &amp; approach</h2>
+      <p class="kicker">Approach</p>
+      <h2>Learned perception, explainable rules</h2>
       <p>One camera, one intersection, unknown test videos from the same mount. The pipeline decodes every 3rd frame,
         aligns each recording onto a reference frame, tracks road users, and turns trajectories plus hand-measured scene
-        geometry into events. Learned components do perception; rules do the reasoning, so every event can be explained.</p>
+        geometry into events. Learned models do the perception; rules do the reasoning, so every event can be explained.</p>
       <figure class="diagram">
         <svg viewBox="0 0 980 210" role="img" aria-labelledby="pipe-title pipe-desc">
           <title id="pipe-title">Pipeline</title>
-          <desc id="pipe-desc">Video is decoded at 10 fps, aligned to the reference frame, passed to perception (YOLO11n with BoT-SORT, traffic-light state, static-object monitor), stored as tracks in metres, then 14 event rules and post-processing produce events. Part B runs its own causal detector and computes time-to-collision risk.</desc>
+          <desc id="pipe-desc">Video is decoded at 10 fps, aligned to the reference frame, passed to perception (YOLO11n with BoT-SORT, traffic-light state, static-object monitor), stored as tracks in metres, then 14 event rules, the VLM verifier and post-processing produce events. Part B runs its own causal detector and computes time-to-collision risk.</desc>
           <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
           <g class="node"><rect x="10" y="40" width="120" height="56" rx="8"/><text x="70" y="64">io</text><text x="70" y="82" class="sub">decode 10 fps</text></g>
           <g class="node"><rect x="160" y="40" width="130" height="56" rx="8"/><text x="225" y="64">scene</text><text x="225" y="82" class="sub">runtime alignment</text></g>
@@ -65,133 +118,108 @@
           <g class="legend-keys"><rect x="10" y="150" width="14" height="14" rx="3" class="key-learned"/><text x="30" y="162" class="sub left">learned</text><rect x="10" y="174" width="14" height="14" rx="3" class="key-rule"/><text x="30" y="186" class="sub left">rule-based / classical</text></g>
         </svg>
       </figure>
-      <table class="plain">
-        <thead><tr><th>Component</th><th>Learned or rule-based</th></tr></thead>
-        <tbody>
-          <tr><td>Road-user detection &amp; tracking</td><td>Learned: YOLO11n (COCO) + BoT-SORT</td></tr>
-          <tr><td>Camera alignment across recordings</td><td>Classical: ORB features, RANSAC similarity</td></tr>
-          <tr><td>Metric calibration</td><td>Fitted pinhole camera (≈12k pedestrian heights, lane vanishing point, 14 m stop line)</td></tr>
-          <tr><td>Traffic-light colour</td><td>Classical: HSV + lamp position</td></tr>
-          <tr><td>14 event classes</td><td>Rules on trajectories, geometry and light state</td></tr>
-          <tr><td>Accident / near-miss / obstacle / fire confirmation</td><td>Learned: Qwen3-VL-2B-Instruct verifier, P(yes) from next-token logits, ≤ 30 calls per video</td></tr>
-        </tbody>
-      </table>
+      <div class="table-wrap">
+        <table class="plain">
+          <thead><tr><th>Component</th><th>How</th></tr></thead>
+          <tbody>
+            <tr><td>Detection &amp; tracking</td><td>Learned: YOLO11n (COCO) + BoT-SORT</td></tr>
+            <tr><td>Camera alignment</td><td>Classical: ORB features, RANSAC similarity, every 10 s</td></tr>
+            <tr><td>Metric calibration</td><td>Fitted pinhole camera (pedestrian heights, lane vanishing point, 14 m stop line)</td></tr>
+            <tr><td>Traffic-light colour</td><td>Classical: HSV + lamp position</td></tr>
+            <tr><td>14 event classes</td><td>Rules on trajectories, geometry and light state</td></tr>
+            <tr><td>Accident / near-miss / obstacle</td><td>Learned: Qwen3-VL-2B verifier, P(yes) from next-token logits</td></tr>
+            <tr><td>Accident risk (Part B)</td><td>Physics: time-to-collision and required deceleration between tracks</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
-    <!-- 3. EDA -->
+    <!-- EDA -->
     <section id="eda">
-      <h2>Exploratory data analysis</h2>
+      <p class="kicker">Exploratory data analysis</p>
+      <h2>What the footage taught us</h2>
       <div class="tiles" id="eda-tiles"></div>
-      <figure class="chart-card">
-        <figcaption><h3>Frame brightness over time</h3><p class="muted">Mean grey level every 5 s. Two videos in daylight, one fading into evening, one at dusk with a jump at 60 s — thresholds must adapt to light.</p></figcaption>
+      <figure class="card">
+        <figcaption class="head"><h3>Frame brightness over time</h3><span class="muted">mean grey level every 5 s</span></figcaption>
+        <p class="muted small">Two videos in daylight, one fading into evening, one at dusk with a jump at 60 s, so every colour and background threshold had to adapt to light.</p>
         <div class="chart" id="brightness-chart"></div>
         <details class="table-view"><summary>Table view</summary><div id="brightness-table"></div></details>
       </figure>
       <div class="two-col">
         <figure class="card">
-          <img src="assets/calib_C3896.jpg" alt="Reference frame with crosswalks, stop line, traffic-light regions, refuge islands and a 5 metre ground grid overlaid" loading="lazy">
+          <img src="assets/calib_C3896.jpg" alt="Reference frame with crosswalks, stop line, traffic-light regions, refuge islands and a 5 metre ground grid overlaid" loading="lazy" width="1280" height="720">
           <figcaption>Scene geometry measured once on the reference frame, with the fitted 5 m ground grid. The median head is the vehicle signal; the left pole is a pedestrian signal.</figcaption>
         </figure>
         <figure class="card">
           <h3>Camera shift vs reference</h3>
-          <p class="muted">The mount moves between recordings (and ~15 px within one), so alignment runs at runtime every 10 s.</p>
+          <p class="muted small">The mount moves between recordings (and ~15 px within one), so alignment runs at runtime every 10 s.</p>
           <div id="shift-table"></div>
         </figure>
       </div>
     </section>
 
-    <!-- 4. Results -->
-    <section id="results">
-      <h2>Results on the sample videos</h2>
-      <p class="muted">Output of the organizers' harness (<code>run_submission.py</code>) on the four sample videos. No ground truth yet, so there is no score here: every enabled class was checked by eye on contact sheets instead.</p>
-      <div class="tabs" role="tablist" id="video-tabs"></div>
-      <div id="video-panel">
-        <div class="tiles small" id="video-tiles"></div>
-        <figure class="chart-card">
-          <figcaption><h3>Annotated playback</h3><p class="muted">Rendered by <code>scripts/render_samples.py</code> from the pipeline's own tracks: vehicle in an event = red box, pedestrian in an event = yellow box, grey = other road users. Click a segment on the timeline below to jump there.</p></figcaption>
-          <video id="sample-player" controls preload="metadata" playsinline></video>
-        </figure>
-        <figure class="chart-card">
-          <figcaption><h3>Event timeline</h3><p class="muted">One row per enabled class; hover a segment for its time span.</p></figcaption>
-          <div class="chart" id="timeline-chart"></div>
-        </figure>
-        <figure class="chart-card">
-          <figcaption><h3>Part B: accident risk</h3><p class="muted">P(accident starts within 5 s), causal. Downsampled to 2 Hz keeping each window's maximum. Dashed line: 0.5.</p></figcaption>
-          <div class="chart" id="risk-chart"></div>
-        </figure>
-        <details class="table-view"><summary>Events table</summary><div id="events-table"></div></details>
-        <h3 class="sub-h">One example per detected class</h3>
-        <div class="gallery" id="examples"></div>
-        <h3 class="sub-h">Honest failure cases</h3>
-        <div class="gallery" id="failures"></div>
-      </div>
-    </section>
-
-    <!-- 5. Live demo -->
-    <section id="demo">
-      <h2>Live demo</h2>
-      <form class="card demo" id="demo-form">
-        <label for="demo-file">Upload a clip from this camera: MP4, up to 2 minutes and 600 MB (any resolution).</label>
-        <input id="demo-file" name="video" type="file" accept="video/mp4,.mp4,.MP4" required>
-        <label class="check"><input type="checkbox" id="demo-full" name="full"> Full analysis: also run the Qwen3-VL verifier for accident / near-miss / obstacle (much slower on the CPU demo server)</label>
-        <button type="submit" id="demo-submit">Run detection</button>
-        <div id="demo-progress" hidden><progress id="demo-bar" max="1" value="0"></progress> <span id="demo-stage" class="muted"></span></div>
-        <p class="muted" id="demo-status">Runs the same code as the submission on CPU: YOLO11n + tracking + the event rules, then the causal risk estimator. A 2-minute 4K clip takes a few minutes.</p>
-      </form>
-      <div id="demo-result" hidden>
-        <div class="tiles small" id="demo-tiles"></div>
-        <figure class="chart-card"><figcaption><h3>Annotated playback</h3></figcaption><video id="demo-player" controls playsinline></video></figure>
-        <figure class="chart-card"><figcaption><h3>Event timeline</h3><p class="muted">Click a segment to jump the video there.</p></figcaption><div class="chart" id="demo-timeline"></div></figure>
-        <figure class="chart-card"><figcaption><h3>Accident risk</h3></figcaption><div class="chart" id="demo-risk"></div></figure>
-        <div class="gallery" id="demo-examples"></div>
-        <details class="table-view"><summary>Events table</summary><div id="demo-events"></div></details>
-      </div>
-    </section>
-
-    <!-- 6. Report -->
+    <!-- Report -->
     <section id="report">
-      <h2>Report</h2>
+      <p class="kicker">Report</p>
+      <h2>What worked, what did not, what is next</h2>
       <div class="two-col">
         <article class="card">
           <h3>What worked</h3>
           <ul>
             <li>Checking every rule on real frames, not only on synthetic tests: it caught the pedestrian-vs-vehicle signal mix-up, riders counted as pedestrians, people waiting on the kerb, and red-to-green line creeping.</li>
             <li>Traffic-light state from an absolute lit-pixel count plus lamp position: clean ~33 s red / ~36 s green cycles on all four videos, day and dusk.</li>
-            <li>Runtime alignment (4-DOF similarity): the same geometry lands on the zebras in every recording.</li>
-            <li>Metric calibration from pedestrian heights: two independent scale cues (people at 1.7 m and a 4-lane stop line) agree within 3 %.</li>
-            <li>A Qwen3-VL-2B verifier that answers yes/no from logits: 0 of 98 false accident / near-miss / obstacle candidates accepted.</li>
-            <li>Runtime well inside the 3× limit on an Apple M4 (see Results).</li>
+            <li>Runtime alignment: the same geometry lands on the zebras in every recording.</li>
+            <li>Metric calibration from pedestrian heights: two independent scale cues agree within 3 %.</li>
+            <li>A Qwen3-VL-2B verifier answering yes/no from logits: 0 of 98 false accident / near-miss / obstacle candidates accepted.</li>
+            <li>1.6–1.7× video duration for Part A + B on an Apple M4, inside the 3× limit.</li>
           </ul>
         </article>
         <article class="card">
           <h3>What did not (yet)</h3>
           <ul>
             <li>No ground truth: thresholds are tuned by eye, so precision and recall are not measured.</li>
-            <li>The VLM verifier rejected all 98 false candidates on the samples, but its recall is untested: the samples contain no accident. Fire/smoke stays disabled.</li>
-            <li>The tracker switches IDs at 10 fps (≈1,200 tracks in 340 s), which shortens trajectories.</li>
+            <li>The VLM verifier's recall is untested: the samples contain no accident. Fire/smoke stays disabled.</li>
+            <li>The tracker switches IDs at 10 fps, which shortens trajectories.</li>
             <li>Not yet timed on the evaluation GPU (T4).</li>
-            <li>Part B has no accident examples to calibrate on; it is a physics baseline, not a trained model.</li>
+            <li>Part B is a physics baseline without accident examples to calibrate on.</li>
+          </ul>
+          <h3>Next</h3>
+          <ul>
+            <li>Annotate the sample videos and tune thresholds against <code>evaluate.py</code>.</li>
+            <li>Model the far-road approach (stop line, signal from traffic flow).</li>
           </ul>
         </article>
       </div>
     </section>
 
-    <!-- 7. Links -->
+    <!-- Team -->
+    <section id="team">
+      <p class="kicker">Team</p>
+      <h2>Who built it</h2>
+      <div class="cards" id="team-cards">
+        <article class="card person"><div class="avatar" aria-hidden="true">·</div><h3>Team member</h3><p class="muted">Role and contributions coming soon</p></article>
+        <article class="card person"><div class="avatar" aria-hidden="true">·</div><h3>Team member</h3><p class="muted">Role and contributions coming soon</p></article>
+        <article class="card person"><div class="avatar" aria-hidden="true">·</div><h3>Team member</h3><p class="muted">Role and contributions coming soon</p></article>
+      </div>
+    </section>
+
+    <!-- Links -->
     <section id="links">
-      <h2>Links</h2>
+      <p class="kicker">Links</p>
+      <h2>Code, weights and outputs</h2>
       <ul class="link-list">
+        <li><a href="https://github.com/Bilolceo/Wiut-">Source code on GitHub</a></li>
         <li><a href="https://wiut-production.up.railway.app">Live site and demo (Railway)</a></li>
-        <li><a href="https://github.com/Bilolceo/Wiut-">Source code (GitHub)</a></li>
-        <li><a href="https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt">Detector weights: YOLO11n (5.6 MB, AGPL-3.0)</a></li>
         <li><a href="https://github.com/Bilolceo/Wiut-/blob/main/predictions_samples.json">predictions_samples.json</a></li>
-        <li><a href="https://github.com/Bilolceo/Wiut-/blob/main/docs/PLAN.md">Design document (PLAN.md)</a></li>
+        <li><a href="https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt">Detector weights: YOLO11n (5.6 MB, AGPL-3.0)</a></li>
         <li><a href="https://huggingface.co/Qwen/Qwen3-VL-2B-Instruct">Verifier weights: Qwen3-VL-2B-Instruct (4.26 GB, Apache-2.0)</a></li>
+        <li><a href="https://github.com/Bilolceo/Wiut-/blob/main/docs/PLAN.md">Design document</a></li>
       </ul>
     </section>
   </main>
 
-  <footer class="wrap foot muted">Built from <code>site/data/site.json</code>, generated by <code>scripts/build_site_data.py</code>.</footer>
+  <footer class="wrap foot muted">WIUT Hackathon 2026 · Built from <code>site/data/*.json</code>, generated by the scripts in the repository.</footer>
   <div class="tooltip" id="tooltip" role="status" hidden></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

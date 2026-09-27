@@ -38,7 +38,7 @@ def test_downsample_keeps_the_peak():
 def client(tmp_path, monkeypatch):
     pytest.importorskip("fastapi")
     pytest.importorskip("httpx")
-    monkeypatch.setenv("DEMO_WORK_DIR", str(tmp_path))
+    monkeypatch.setenv("DEMO_WORK_DIR", str(tmp_path / "work"))
     monkeypatch.setenv("DEMO_MAX_SEC", "2")
     import importlib
 
@@ -71,3 +71,39 @@ def test_demo_does_not_serve_uploads_or_unknown_jobs(client):
     assert client.get("/api/jobs/nope").status_code == 404
     assert client.get("/api/jobs/nope/files/input.mp4").status_code == 404
     assert client.get("/api/health").json()["ok"] is True
+
+
+def test_demo_validation_errors_are_plain_sentences(client, tmp_path):
+    r = client.post("/api/jobs", data={"full": "true"})
+    assert r.status_code == 422 and isinstance(r.json()["detail"], str) and "video" in r.json()["detail"]
+
+
+def test_demo_rejects_empty_and_truncated_uploads(client, tmp_path):
+    empty = tmp_path / "e.mp4"
+    empty.write_bytes(b"")
+    assert client.post("/api/jobs", files={"video": ("e.mp4", empty.open("rb"), "video/mp4")}).status_code == 422
+    clip = _clip(tmp_path / "ok.mp4", 1.0)
+    cut = tmp_path / "cut.mp4"
+    cut.write_bytes(open(clip, "rb").read()[:300])
+    assert client.post("/api/jobs", files={"video": ("cut.mp4", cut.open("rb"), "video/mp4")}).status_code == 422
+
+
+def test_demo_rejects_uploads_over_the_size_cap(client, tmp_path, monkeypatch):
+    import demo.server as server
+
+    monkeypatch.setattr(server, "MAX_BYTES", 1000)
+    big = tmp_path / "big.mp4"
+    big.write_bytes(b"\0" * 5000)
+    r = client.post("/api/jobs", files={"video": ("big.mp4", big.open("rb"), "video/mp4")})
+    assert r.status_code == 413
+    assert not any(server.WORK.iterdir())  # the partial upload was removed
+
+
+def test_demo_refuses_new_jobs_when_the_queue_is_full(client, tmp_path, monkeypatch):
+    import demo.server as server
+
+    monkeypatch.setattr(server, "MAX_PENDING", 1)
+    server.JOBS["busy"] = server.Job(id="busy", full=False, status="running")
+    clip = _clip(tmp_path / "ok.mp4", 1.0)
+    r = client.post("/api/jobs", files={"video": ("ok.mp4", open(clip, "rb"), "video/mp4")})
+    assert r.status_code == 503 and "busy" in r.json()["detail"]

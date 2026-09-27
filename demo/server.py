@@ -23,9 +23,10 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import cv2
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.detect import detect_events_impl, get_scene
@@ -39,6 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORK = Path(os.environ.get("DEMO_WORK_DIR", "/tmp/wiut-demo"))
 MAX_BYTES = int(os.environ.get("DEMO_MAX_MB", "600")) * 1024 * 1024
 MAX_SEC = float(os.environ.get("DEMO_MAX_SEC", "120"))
+MAX_PENDING = int(os.environ.get("DEMO_MAX_PENDING", "4"))  # queued + running; protects disk and CPU from floods
 KEEP_JOBS = 20
 RENDER_WIDTH = 640
 
@@ -56,11 +58,26 @@ class Job:
 
 
 JOBS: dict[str, Job] = {}
+# Jobs live in memory, so outputs from a previous process can never be served again: start clean.
+shutil.rmtree(WORK, ignore_errors=True)
+WORK.mkdir(parents=True, exist_ok=True)
 LOCK = threading.Lock()
 EXECUTOR = ThreadPoolExecutor(max_workers=1)
 
 app = FastAPI(title="Traffic event detection demo")
 app.add_middleware(CORSMiddleware, allow_origins=os.environ.get("DEMO_CORS", "*").split(","), allow_methods=["*"], allow_headers=["*"])
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """One readable sentence instead of pydantic's error list (the page shows `detail` as text)."""
+    fields = sorted({str(e["loc"][-1]) for e in exc.errors()})
+    return JSONResponse({"detail": f"Missing or invalid form field(s): {', '.join(fields)}. Send the clip as 'video'."}, status_code=422)
+
+
+def _pending() -> int:
+    with LOCK:
+        return sum(j.status in ("queued", "running") for j in JOBS.values())
 
 
 def _set(job: Job, **kw) -> None:
@@ -143,6 +160,8 @@ def health() -> dict:
 
 @app.post("/api/jobs")
 async def create_job(video: UploadFile = File(...), full: bool = Form(False)) -> dict:
+    if _pending() >= MAX_PENDING:
+        raise HTTPException(503, "The demo server is busy with other clips. Please try again in a few minutes.")
     job = Job(id=uuid.uuid4().hex[:12], full=full)
     job_dir = WORK / job.id
     job_dir.mkdir(parents=True, exist_ok=True)
@@ -159,11 +178,17 @@ async def create_job(video: UploadFile = File(...), full: bool = Form(False)) ->
     except Exception:
         shutil.rmtree(job_dir, ignore_errors=True)
         raise HTTPException(422, "Not a readable video file")
+    if meta.n_frames < 1 or meta.duration_sec <= 0:
+        shutil.rmtree(job_dir, ignore_errors=True)
+        raise HTTPException(422, "The video has no frames")
     if meta.duration_sec > MAX_SEC + 0.5:
         shutil.rmtree(job_dir, ignore_errors=True)
         raise HTTPException(422, f"Video is {meta.duration_sec:.0f} s; the demo accepts up to {MAX_SEC:.0f} s")
     _cleanup()
     with LOCK:
+        if sum(j.status in ("queued", "running") for j in JOBS.values()) >= MAX_PENDING:  # raced with another upload
+            shutil.rmtree(job_dir, ignore_errors=True)
+            raise HTTPException(503, "The demo server is busy with other clips. Please try again in a few minutes.")
         JOBS[job.id] = job
     EXECUTOR.submit(_run, job, path)
     return {"id": job.id}
