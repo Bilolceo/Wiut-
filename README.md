@@ -81,6 +81,8 @@ No hosted API is used at inference. No training was done yet; all models are use
 ## Live demo and annotated renders
 
 Live: **https://wiut-production.up.railway.app** (website + demo API, CPU).
+Mirror (static site, demo form calls the Railway API): **https://bilolceo.github.io/Wiut-/** —
+redeploy with Actions → Website → Run workflow.
 
 ```bash
 pip install -r demo/requirements.txt
